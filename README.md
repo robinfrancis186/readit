@@ -5,8 +5,9 @@ that turns any selection into a dictionary lookup or a note, and a separate
 editable notebook for every item you read.
 
 Readit runs as a small web app you host yourself. Open it in a browser on a
-desktop, tablet or phone; the library, the notebooks and the dictionaries all
-live in a single SQLite file you own.
+desktop, tablet or phone — or install it as an app on Windows, macOS, Android
+and iOS straight from the browser. The library, the notebooks and the
+dictionaries all live in a single SQLite file you own.
 
 ---
 
@@ -53,6 +54,21 @@ and exported to Markdown.
 **Periodicals are handled as periodicals.** For a magazine or newspaper, the
 reading notes get a separate page per issue date, so a title you follow over
 months reads chronologically. Word lists page by the date you read them.
+
+**Install it as an app.** Readit is a progressive web app, so it installs
+without an app store and runs in its own window with its own icon:
+
+| Platform | How |
+| --- | --- |
+| Windows / macOS / Linux | Chrome or Edge → the install icon in the address bar |
+| Android | Chrome → menu → *Install app* |
+| iOS / iPadOS | Safari → Share → *Add to Home Screen* |
+
+Installed, it opens instantly and its shell still loads without a connection,
+so you get a real explanation rather than a browser error page. Your library
+itself is served by the API and needs the server reachable — Readit never
+caches book files or notes, which would go stale and would not fit in a
+browser's storage quota anyway.
 
 ---
 
@@ -106,14 +122,24 @@ setup, and how to add a dictionary of your own.
 npm test                                    # unit tests
 READIT_SAMPLE_EPUB=/path/to/book.epub npm test   # also exercises real EPUB ingestion
 
-npm start                                   # in another terminal
+npm run build && npm start                  # in another terminal
 READIT_SAMPLE_EPUB=/path/to/book.epub npm run test:e2e
 ```
 
-The end-to-end suites drive a real browser through both workflows — importing
-a book, reading it, selecting text, looking words up, saving and editing notes
-— and fail on any console error. The periodical suite uses a generated sample
-newspaper (`node e2e/fixtures/make-newspaper.mjs`).
+Three end-to-end suites drive a real browser and fail on any console error:
+
+- **Book** — import an EPUB, read it, select text, look a word up, save and
+  edit notes, search and export them.
+- **Periodical** — import a PDF newspaper with an issue date, read it through
+  pdf.js's text layer, look up English and Malayalam words, and confirm
+  excerpts are filed on a page of their own for that issue. Uses a generated
+  fixture (`node e2e/fixtures/make-newspaper.mjs`).
+- **PWA** — the manifest, icons and iOS tags needed to install, and that the
+  app boots offline rather than showing a blank page.
+
+The e2e suites need the built app being served (`npm run build && npm start`),
+not the dev server. Set `CHROMIUM_PATH` if you want to use a Chromium you
+already have rather than Playwright's.
 
 ---
 
@@ -122,8 +148,9 @@ newspaper (`node e2e/fixtures/make-newspaper.mjs`).
 ```
 server/   Fastify + SQLite (better-sqlite3). REST API, EPUB/PDF ingestion,
           dictionary engine and importers.
-web/      React + Vite + Tailwind. Library, reader, notebooks, dictionary.
-e2e/      Browser tests for the two end-to-end workflows.
+web/      React + Vite + Tailwind. Library, reader, notebooks, dictionary,
+          plus the manifest and service worker that make it installable.
+e2e/      Browser tests for the three end-to-end workflows.
 ```
 
 Search everywhere — the library, inside a book, inside a notebook, and across
@@ -153,5 +180,14 @@ Readit is single-user and unauthenticated by design: it is meant to be run on
 your own machine or a private host. There are no accounts, so do not expose it
 directly to the internet without putting authentication in front of it.
 
-Not yet built: native desktop and mobile applications (the API is ready for
-them), OCR for scanned PDFs without a text layer, and sync between devices.
+Installing it as an app covers Windows, Android and iOS from one codebase.
+Fully native applications are not built; the API is separate from the UI so
+they can be added without reworking the server.
+
+Also not yet built: OCR for scanned PDFs that carry no text layer (they will
+import and display, but not be searchable), reading book files offline, and
+sync between devices.
+
+One caution for iOS: Safari evicts service worker caches for sites that have
+not been opened in a while, so an installed copy may need a connection on its
+first launch after a long gap.

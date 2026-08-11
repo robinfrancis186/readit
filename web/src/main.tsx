@@ -24,6 +24,14 @@ const router = createBrowserRouter([
   { path: '/read/:id', element: <ReaderPage /> },
 ]);
 
+// Register the service worker so Readit installs as an app on desktop, Android
+// and iOS, and opens without a connection. Failure here is never fatal.
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <RouterProvider router={router} />

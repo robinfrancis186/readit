@@ -16,13 +16,25 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
-    ...init,
-    headers:
-      init?.body instanceof FormData
-        ? init?.headers
-        : { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
-  });
+  let res: Response;
+  try {
+    res = await fetch(path, {
+      ...init,
+      headers:
+        init?.body instanceof FormData
+          ? init?.headers
+          : { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+    });
+  } catch {
+    // fetch only rejects on a network-level failure. Installed as an app, this
+    // is the common case, and "Failed to fetch" tells the reader nothing.
+    throw new ApiError(
+      navigator.onLine
+        ? 'Cannot reach Readit. Is the server running?'
+        : 'You are offline. Your library needs a connection.',
+      0,
+    );
+  }
   if (!res.ok) {
     let message = `${res.status} ${res.statusText}`;
     try {

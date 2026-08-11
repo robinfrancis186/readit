@@ -70,15 +70,20 @@ export function ReaderPage() {
   return (
     <div className="h-full flex flex-col bg-paper">
       <Toaster />
-      <header className="shrink-0 border-b border-rule px-3 h-12 flex items-center gap-2 text-sm">
-        <Link to={`/item/${item.id}`} className="btn py-1 px-2" title="Back to details">
-          ←
-        </Link>
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-medium">{item.title}</p>
-          {chapter && <p className="truncate text-xs text-soft">{chapter}</p>}
+      {/* Two rows on a phone — the title needs a line of its own, or it gets
+          squeezed to nothing by the controls. One row from `sm` up. */}
+      <header className="shrink-0 border-b border-rule px-3 py-1.5 sm:h-12 sm:py-0 flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 text-sm">
+        <div className="flex items-center gap-2 min-w-0">
+          <Link to={`/item/${item.id}`} className="btn py-1 px-2 shrink-0" title="Back to details">
+            ←
+          </Link>
+          <div className="min-w-0 flex-1 sm:flex-initial sm:max-w-md">
+            <p className="truncate font-medium">{item.title}</p>
+            {chapter && <p className="truncate text-xs text-soft">{chapter}</p>}
+          </div>
         </div>
 
+        <div className="flex items-center gap-2 overflow-x-auto sm:overflow-visible sm:contents sm:ml-auto">
         {item.file_format === 'epub' && (
           <button
             type="button"
@@ -97,7 +102,7 @@ export function ReaderPage() {
         >
           Search
         </button>
-        <div className="hidden sm:flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0">
           <button
             type="button"
             className="btn py-1 px-2"
@@ -125,11 +130,12 @@ export function ReaderPage() {
             Words <span className="text-soft">{counts.vocab ?? 0}</span>
           </Link>
         )}
+        </div>
       </header>
 
       <div className="flex-1 flex min-h-0">
         {panel !== 'none' && (
-          <aside className="w-72 shrink-0 border-r border-rule overflow-y-auto p-3">
+          <aside className="w-full sm:w-72 shrink-0 border-r border-rule overflow-y-auto p-3">
             {panel === 'toc' ? (
               <TocPanel toc={toc} onGo={(href) => setGotoTarget(href)} />
             ) : (
@@ -145,7 +151,9 @@ export function ReaderPage() {
           </aside>
         )}
 
-        <div className="flex-1 min-w-0">
+        {/* On a phone the panel takes the whole width, so the reader steps
+            aside while it is open rather than being squeezed to a sliver. */}
+        <div className={`flex-1 min-w-0 ${panel !== 'none' ? 'hidden sm:block' : ''}`}>
           {item.file_format === 'epub' ? (
             <EpubReader
               url={fileUrl(item.id)}

@@ -23,6 +23,7 @@ export function LibraryPage() {
   const [facets, setFacets] = useState<Facets | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
 
   // Debounce the free-text box so typing doesn't hammer the API.
   useEffect(() => {
@@ -87,13 +88,36 @@ export function LibraryPage() {
             </option>
           ))}
         </select>
+        {/* On a phone the facet list would push every book below the fold, so
+            it collapses behind this toggle and the results come first. */}
+        <button
+          type="button"
+          className="btn lg:hidden"
+          onClick={() => setShowFilters((v) => !v)}
+          aria-expanded={showFilters}
+          aria-controls="library-facets"
+        >
+          Filters
+          {activeFilters.length > 0 && (
+            <span className="text-xs rounded-full bg-accent-soft text-accent px-1.5">
+              {activeFilters.length}
+            </span>
+          )}
+        </button>
         <button type="button" className="btn btn-primary" onClick={() => setUploadOpen(true)}>
-          + Add to library
+          <span className="sm:hidden">+ Add</span>
+          <span className="hidden sm:inline">+ Add to library</span>
         </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[16rem_1fr] gap-6">
-        <FacetSidebar facets={facets} query={query} setFacet={setFacet} setQuery={setQuery} />
+        <FacetSidebar
+          facets={facets}
+          query={query}
+          setFacet={setFacet}
+          setQuery={setQuery}
+          open={showFilters}
+        />
 
         <section className="flex flex-col gap-4 min-w-0">
           <div className="flex flex-wrap items-center gap-2 text-sm text-soft">
@@ -154,16 +178,21 @@ function FacetSidebar({
   query,
   setFacet,
   setQuery,
+  open,
 }: {
   facets: Facets | null;
   query: LibraryQuery;
   setFacet: (key: keyof LibraryQuery, value: string | undefined) => void;
   setQuery: React.Dispatch<React.SetStateAction<LibraryQuery>>;
+  open: boolean;
 }) {
   if (!facets) return <aside aria-hidden />;
 
   return (
-    <aside className="flex flex-col gap-5 text-sm lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto pr-1">
+    <aside
+      id="library-facets"
+      className={`${open ? 'flex' : 'hidden'} lg:flex flex-col gap-5 text-sm lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto pr-1`}
+    >
       <FacetGroup
         title="Type"
         values={facets.kinds.map((k) => ({ ...k, label: KIND_LABELS[k.value as ItemKind] ?? k.value }))}

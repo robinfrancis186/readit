@@ -17,7 +17,7 @@
     "test": "npm run test --workspace server",
     "import:stv": "npm run import:stv --workspace server",
     "import:wordnet": "npm run import:wordnet --workspace server",
-    "test:e2e": "node e2e/library.mjs && node e2e/periodical.mjs"
+    "test:e2e": "node e2e/library.mjs && node e2e/periodical.mjs && node e2e/pwa.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

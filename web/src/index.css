@@ -18,14 +18,15 @@
   --font-malayalam: 'Noto Sans Malayalam', 'Manjari', 'Rachana', 'Meera', 'AnjaliOldLipi', sans-serif;
 }
 
+/* Light is the base palette; the dark blocks below only override these. */
 :root {
-  --paper: var(--color-paper);
-  --paper-raised: var(--color-paper-raised);
-  --ink: var(--color-ink);
-  --ink-soft: var(--color-ink-soft);
-  --rule: var(--color-rule);
-  --accent: var(--color-accent);
-  --accent-soft: var(--color-accent-soft);
+  --paper: #faf7f2;
+  --paper-raised: #ffffff;
+  --ink: #1c1917;
+  --ink-soft: #57534e;
+  --rule: #e7e2d9;
+  --accent: #9a3412;
+  --accent-soft: #fdf0e7;
   color-scheme: light;
 }
 
