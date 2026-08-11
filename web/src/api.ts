@@ -30,7 +30,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     // is the common case, and "Failed to fetch" tells the reader nothing.
     throw new ApiError(
       navigator.onLine
-        ? 'Cannot reach Readit. Is the server running?'
+        ? 'Cannot reach Readit. You may be offline, or the server may be stopped.'
         : 'You are offline. Your library needs a connection.',
       0,
     );
@@ -109,7 +109,7 @@ export const api = {
     request<DocumentPayload>(`/api/documents/${id}${qs(query)}`),
 
   addEntry: (documentId: number, body: Record<string, unknown>) =>
-    request<{ entry: Entry }>(`/api/documents/${documentId}/entries`, {
+    request<{ entry: Entry; duplicate?: boolean; message?: string }>(`/api/documents/${documentId}/entries`, {
       method: 'POST',
       body: JSON.stringify(body),
     }),

@@ -42,6 +42,29 @@ function ftsQuery(raw: string): string {
   return tokens.length ? tokens.map((t) => `"${t}"*`).join(' AND ') : '';
 }
 
+function normaliseSavedWord(value: string | null | undefined): string {
+  return (value ?? '').normalize('NFC').trim().toLocaleLowerCase();
+}
+
+function findDuplicateWordEntry(
+  documentId: number,
+  pageId: number,
+  word: string,
+): Record<string, any> | undefined {
+  const needle = normaliseSavedWord(word);
+  if (!needle) return undefined;
+
+  const entries = db
+    .prepare(
+      `SELECT * FROM entries
+        WHERE document_id = ? AND page_id = ? AND kind = 'word'
+        ORDER BY id ASC`,
+    )
+    .all(documentId, pageId) as Array<Record<string, any>>;
+
+  return entries.find((entry) => normaliseSavedWord(entry.word || entry.content_text) === needle);
+}
+
 export async function documentRoutes(app: FastifyInstance): Promise<void> {
   /**
    * A document plus its pages and entries, filtered by keyword and/or date.
@@ -115,38 +138,52 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
       pageId: body.pageId,
     });
 
-    const nextOrder = db
-      .prepare('SELECT COALESCE(MAX(order_index), 0) + 1 AS n FROM entries WHERE page_id = ?')
-      .get(pageId) as { n: number };
+    const result = db.transaction(() => {
+      if (body.kind === 'word') {
+        const duplicate = findDuplicateWordEntry(id, pageId, body.word ?? body.text);
+        if (duplicate) return { duplicate: true, entry: duplicate };
+      }
 
-    const info = db
-      .prepare(
-        `INSERT INTO entries (
-           document_id, page_id, kind, content_html, content_text, note, word, lang,
-           meanings, dict_source, source_label, source_locator, reading_date, issue_date, order_index
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        id,
-        pageId,
-        body.kind,
-        body.html ?? `<p>${escapeHtml(body.text)}</p>`,
-        body.text,
-        body.note ?? null,
-        body.word ?? null,
-        body.lang ?? null,
-        body.meanings ? JSON.stringify(body.meanings) : null,
-        body.dictSource ?? null,
-        body.sourceLabel ?? null,
-        body.sourceLocator ?? null,
-        readingDate,
-        body.issueDate ?? null,
-        nextOrder.n,
-      );
+      const nextOrder = db
+        .prepare('SELECT COALESCE(MAX(order_index), 0) + 1 AS n FROM entries WHERE page_id = ?')
+        .get(pageId) as { n: number };
 
-    touchDocument(id);
-    const entry = db.prepare('SELECT * FROM entries WHERE id = ?').get(Number(info.lastInsertRowid));
-    return reply.code(201).send({ entry });
+      const info = db
+        .prepare(
+          `INSERT INTO entries (
+             document_id, page_id, kind, content_html, content_text, note, word, lang,
+             meanings, dict_source, source_label, source_locator, reading_date, issue_date, order_index
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          id,
+          pageId,
+          body.kind,
+          body.html ?? `<p>${escapeHtml(body.text)}</p>`,
+          body.text,
+          body.note ?? null,
+          body.word ?? null,
+          body.lang ?? null,
+          body.meanings ? JSON.stringify(body.meanings) : null,
+          body.dictSource ?? null,
+          body.sourceLabel ?? null,
+          body.sourceLocator ?? null,
+          readingDate,
+          body.issueDate ?? null,
+          nextOrder.n,
+        );
+
+      touchDocument(id);
+      const entry = db.prepare('SELECT * FROM entries WHERE id = ?').get(Number(info.lastInsertRowid));
+      return { duplicate: false, entry };
+    })();
+
+    if (result.duplicate) {
+      return reply
+        .code(200)
+        .send({ duplicate: true, message: "That word is already in today's word list.", entry: result.entry });
+    }
+    return reply.code(201).send({ entry: result.entry });
   });
 
   app.patch('/api/entries/:id', async (req, reply) => {

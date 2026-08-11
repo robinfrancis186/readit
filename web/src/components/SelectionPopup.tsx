@@ -125,7 +125,7 @@ export function SelectionPopup({
     if (!vocabDocId) return;
     setBusy('word');
     try {
-      await api.addEntry(vocabDocId, {
+      const result = await api.addEntry(vocabDocId, {
         kind: 'word',
         text: selection.text,
         word: selection.text,
@@ -135,6 +135,11 @@ export function SelectionPopup({
         sourceLabel: selection.label,
         sourceLocator: selection.locator,
       });
+      if (result.duplicate) {
+        toast(result.message ?? "That word is already in today's word list.");
+        onClose();
+        return;
+      }
       toast('Saved to the word list.');
       onSaved?.('word');
       onClose();

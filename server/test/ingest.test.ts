@@ -2,12 +2,14 @@ import './setup.js';
 import assert from 'node:assert/strict';
 import { describe, it, before } from 'node:test';
 import { existsSync, readFileSync } from 'node:fs';
+import Fastify from 'fastify';
 
 const { ingestFile, parseFilename } = await import('../src/ingest/index.js');
 const { cleanPdfTitle } = await import('../src/ingest/pdf.js');
 const { htmlToText } = await import('../src/ingest/text.js');
 const { db } = await import('../src/db.js');
 const { resolvePage, describeItem, PAGE_CAPACITY } = await import('../src/documents.js');
+const { documentRoutes } = await import('../src/routes/documents.js');
 
 /** The sample book lives outside the repo; these tests skip without it. */
 const SAMPLE = process.env.READIT_SAMPLE_EPUB ?? '';
@@ -225,5 +227,62 @@ describe('document paging', () => {
     assert.notEqual(day1, day2);
     const page = db.prepare('SELECT title, issue_date FROM doc_pages WHERE id = ?').get(day1);
     assert.deepEqual(page, { title: 'Words — 2026-01-10', issue_date: '2026-01-10' });
+  });
+});
+
+describe('document entries', () => {
+  function makeVocabDocument(title: string): number {
+    const info = db
+      .prepare(
+        `INSERT INTO items (kind, title, authors, genres, file_path, file_format, sha256)
+         VALUES ('book', ?, '[]', '[]', ?, 'pdf', ?)`,
+      )
+      .run(title, `${title}.pdf`, `sha-${title}-${Math.random()}`);
+    const itemId = Number(info.lastInsertRowid);
+    const doc = db
+      .prepare("INSERT INTO documents (item_id, kind, title) VALUES (?, 'vocab', ?)")
+      .run(itemId, `Word list — ${title}`);
+    return Number(doc.lastInsertRowid);
+  }
+
+  it("skips duplicate words on the same reading day's page but keeps different days", async () => {
+    const app = Fastify();
+    await app.register(documentRoutes);
+    await app.ready();
+    try {
+      const vocab = makeVocabDocument('Duplicate Word Book');
+      const first = await app.inject({
+        method: 'POST',
+        url: `/api/documents/${vocab}/entries`,
+        payload: { kind: 'word', text: ' Corruption ', word: ' Corruption ', readingDate: '2026-08-11' },
+      });
+      assert.equal(first.statusCode, 201);
+
+      const duplicate = await app.inject({
+        method: 'POST',
+        url: `/api/documents/${vocab}/entries`,
+        payload: { kind: 'word', text: 'corruption', word: 'corruption', readingDate: '2026-08-11' },
+      });
+      assert.equal(duplicate.statusCode, 200);
+      assert.equal(duplicate.json().duplicate, true);
+      assert.equal(duplicate.json().message, "That word is already in today's word list.");
+
+      const nextDay = await app.inject({
+        method: 'POST',
+        url: `/api/documents/${vocab}/entries`,
+        payload: { kind: 'word', text: 'corruption', word: 'corruption', readingDate: '2026-08-12' },
+      });
+      assert.equal(nextDay.statusCode, 201);
+
+      const entries = db
+        .prepare("SELECT reading_date, word FROM entries WHERE document_id = ? AND kind = 'word' ORDER BY id")
+        .all(vocab);
+      assert.deepEqual(entries, [
+        { reading_date: '2026-08-11', word: ' Corruption ' },
+        { reading_date: '2026-08-12', word: 'corruption' },
+      ]);
+    } finally {
+      await app.close();
+    }
   });
 });
