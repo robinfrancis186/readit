@@ -1,0 +1,182 @@
+@import 'tailwindcss';
+
+/*
+ * Readit reads like paper: warm neutrals, a serif for prose, and a dark mode
+ * that is a dim study rather than an inverted screen.
+ */
+/*
+ * Only fonts live in @theme. Colour tokens declared here would make Tailwind
+ * generate *static* `bg-paper`/`border-rule` utilities frozen at their light
+ * values, which then shadow the runtime variables below and leave dark mode
+ * half-light. The palette is plain custom properties instead, swapped per
+ * theme, with the matching utilities defined by hand further down.
+ */
+@theme {
+  --font-serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Times New Roman', Georgia, serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Malayalam needs a font stack of its own or it falls back to boxes. */
+  --font-malayalam: 'Noto Sans Malayalam', 'Manjari', 'Rachana', 'Meera', 'AnjaliOldLipi', sans-serif;
+}
+
+:root {
+  --paper: var(--color-paper);
+  --paper-raised: var(--color-paper-raised);
+  --ink: var(--color-ink);
+  --ink-soft: var(--color-ink-soft);
+  --rule: var(--color-rule);
+  --accent: var(--color-accent);
+  --accent-soft: var(--color-accent-soft);
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --paper: #1a1917;
+  --paper-raised: #232220;
+  --ink: #ede9e3;
+  --ink-soft: #a8a29e;
+  --rule: #3a3733;
+  --accent: #fb923c;
+  --accent-soft: #33251b;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --paper: #1a1917;
+    --paper-raised: #232220;
+    --ink: #ede9e3;
+    --ink-soft: #a8a29e;
+    --rule: #3a3733;
+    --accent: #fb923c;
+    --accent-soft: #33251b;
+    color-scheme: dark;
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Malayalam glyphs are tall; give them room wherever they appear. */
+.ml,
+[lang='ml'] {
+  font-family: var(--font-malayalam);
+  line-height: 1.9;
+}
+
+.prose-reader {
+  font-family: var(--font-serif);
+  font-size: 1.0625rem;
+  line-height: 1.75;
+}
+
+mark {
+  background: var(--accent-soft);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+/* Utility classes used across the app, mapped onto the theme variables. */
+@layer utilities {
+  .bg-paper { background-color: var(--paper); }
+  .bg-raised { background-color: var(--paper-raised); }
+  .text-ink { color: var(--ink); }
+  .text-soft { color: var(--ink-soft); }
+  .text-accent { color: var(--accent); }
+  .bg-accent-soft { background-color: var(--accent-soft); }
+  .border-rule { border-color: var(--rule); }
+  .ring-rule { --tw-ring-color: var(--rule); }
+  /* Translucent surfaces: the `bg-paper/90` opacity modifier only works on
+     Tailwind colour tokens, which these deliberately are not. */
+  .bg-paper-blur { background-color: color-mix(in srgb, var(--paper) 90%, transparent); }
+  .bg-raised-blur { background-color: color-mix(in srgb, var(--paper-raised) 85%, transparent); }
+  .bg-accent-hover:hover { background-color: color-mix(in srgb, var(--accent-soft) 60%, transparent); }
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+  color: inherit;
+}
+
+/*
+ * These belong in the components layer: Tailwind's utilities layer is declared
+ * after it, so `w-auto` on a `.field` (or `p-4` on a `.card`) still wins.
+ * Unlayered rules would beat every utility instead.
+ */
+@layer components {
+
+.card {
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: 0.75rem;
+}
+
+.field {
+  width: 100%;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  outline: none;
+}
+.field:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--rule);
+  background: var(--paper-raised);
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) {
+  color: #fff;
+  filter: brightness(1.08);
+}
+
+}
+
+/* Editable entry bodies inside a notebook page. */
+[contenteditable='true']:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}

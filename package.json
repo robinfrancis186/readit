@@ -1,0 +1,29 @@
+{
+  "name": "readit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Readit \u2014 a personal library for books, magazines, newspapers and PDFs, with excerpt notebooks and an integrated Malayalam/English dictionary.",
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web -c cyan,magenta \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:server": "npm run dev --workspace server",
+    "dev:web": "npm run dev --workspace web",
+    "build": "npm run build --workspace web && npm run build --workspace server",
+    "start": "npm run start --workspace server",
+    "typecheck": "npm run typecheck --workspace server && npm run typecheck --workspace web",
+    "test": "npm run test --workspace server",
+    "import:stv": "npm run import:stv --workspace server",
+    "import:wordnet": "npm run import:wordnet --workspace server",
+    "test:e2e": "node e2e/library.mjs && node e2e/periodical.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "playwright": "^1.62.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
