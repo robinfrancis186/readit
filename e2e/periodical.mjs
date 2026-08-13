@@ -51,6 +51,13 @@ await step('PDF renders with a selectable text layer', async()=>{
 });
 
 await step('selecting an English word in the PDF looks it up', async()=>{
+  // Pages render one after another, so wait for the span carrying the word
+  // rather than assuming the whole text layer is already in place.
+  await p.waitForFunction(
+    () => [...document.querySelectorAll('.textLayer span')].some(s => /corruption/i.test(s.textContent)),
+    null,
+    { timeout: 30000 },
+  );
   await p.evaluate(()=>{
     const span=[...document.querySelectorAll('.textLayer span')].find(s=>/corruption/i.test(s.textContent));
     const node=span.firstChild; const i=span.textContent.search(/corruption/i);
@@ -66,6 +73,11 @@ await step('selecting an English word in the PDF looks it up', async()=>{
 await step('selecting a Malayalam word looks it up in Sabdatharavali', async()=>{
   // pdf.js splits Malayalam into one span per glyph run, so a real mouse drag
   // spans several elements. Reproduce that rather than selecting inside one.
+  await p.waitForFunction(
+    () => [...document.querySelectorAll('.textLayer span')].some(s => s.textContent.includes('\u0d15')),
+    null,
+    { timeout: 30000 },
+  );
   const picked = await p.evaluate(()=>{
     const spans=[...document.querySelectorAll('.textLayer span')];
     for(let i=0;i<spans.length;i++){
@@ -92,7 +104,7 @@ await step('selecting a Malayalam word looks it up in Sabdatharavali', async()=>
 
 await step('save the Malayalam word', async()=>{
   await p.click('button:has-text("Save word")');
-  await p.waitForSelector('text=Saved to the word list',{timeout:10000});
+  await p.waitForSelector('text=/Saved to the word list|already in today/i',{timeout:10000});
 });
 
 await step('add an excerpt — it files under the issue date', async()=>{

@@ -116,7 +116,32 @@ await step('popup shows a real definition', async () => {
 
 await step('save the word to the word list', async () => {
   await page.click('button:has-text("Save word")');
-  await page.waitForSelector('text=Saved to the word list', { timeout: 10000 });
+  // Either message is correct: on a fresh library the word is new, on a re-run
+  // it is already filed under today's date.
+  await page.waitForSelector('text=/Saved to the word list|already in today/i', { timeout: 10000 });
+});
+
+await step('saving the same word twice in a day does not duplicate it', async () => {
+  const frame = page.frames().find((f) => f !== page.mainFrame());
+  await frame.evaluate(() => {
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+      const idx = node.textContent.search(/\bcorruption\b/i);
+      if (idx >= 0 && node.parentElement?.offsetParent !== null) {
+        const range = document.createRange();
+        range.setStart(node, idx);
+        range.setEnd(node, idx + 'corruption'.length);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        return;
+      }
+    }
+  });
+  await page.waitForSelector('[role=dialog][aria-label=Selection]', { timeout: 10000 });
+  await page.click('button:has-text("Save word")');
+  await page.waitForSelector('text=/already in today/i', { timeout: 10000 });
 });
 
 await step('select a passage and add it to reading notes', async () => {
@@ -180,9 +205,18 @@ await step('word list has the saved word with meanings', async () => {
   const text = await page.textContent('article');
   if (!/corruption/i.test(text)) throw new Error('word missing');
   if (!/wordnet/i.test(text)) throw new Error('meanings were not captured with the word');
-  const pageHeading = await page.textContent('section');
+
+  // The word list pages by reading date, so a library used across several days
+  // has several pages. Find today's rather than assuming there is only one.
   const today = new Date().toISOString().slice(0, 10);
-  if (!pageHeading.includes(today)) throw new Error(`word page not filed under today's date: ${pageHeading.slice(0,120)}`);
+  const pages = await page.locator('section').allTextContents();
+  const todaysPage = pages.find((p) => p.includes(today));
+  if (!todaysPage) {
+    throw new Error(`no word-list page for today (${today}); pages: ${pages.map((p) => p.slice(0, 24)).join(' | ')}`);
+  }
+  if (!/corruption/i.test(todaysPage)) {
+    throw new Error("today's page does not hold the word that was just saved");
+  }
 });
 
 await step('markdown export works', async () => {

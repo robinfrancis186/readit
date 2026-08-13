@@ -43,7 +43,17 @@ function ftsQuery(raw: string): string {
 }
 
 function normaliseSavedWord(value: string | null | undefined): string {
-  return (value ?? '').normalize('NFC').trim().toLocaleLowerCase();
+  return (
+    (value ?? '')
+      .normalize('NFC')
+      // Selecting a word in a book routinely drags in the punctuation beside
+      // it, so “corruption,” and corruption must compare equal. \p{M} is kept
+      // deliberately: Indic vowel signs are combining marks, not letters, and
+      // trimming on \p{L}\p{N} alone truncates every Malayalam word.
+      .replace(/^[^\p{L}\p{N}\p{M}]+|[^\p{L}\p{N}\p{M}]+$/gu, '')
+      .trim()
+      .toLocaleLowerCase()
+  );
 }
 
 function findDuplicateWordEntry(

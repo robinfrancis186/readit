@@ -55,6 +55,12 @@ and exported to Markdown.
 reading notes get a separate page per issue date, so a title you follow over
 months reads chronologically. Word lists page by the date you read them.
 
+Looking the same word up twice in one sitting will not leave two identical
+entries — Readit says it is already on today's page. Meeting it again on a
+later day *does* record a second entry, because that is a genuine second
+sighting in a new context. Excerpts are never de-duplicated: the same passage
+may legitimately be quoted twice.
+
 **Install it as an app.** Readit is a progressive web app, so it installs
 without an app store and runs in its own window with its own icon:
 
