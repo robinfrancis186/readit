@@ -38,17 +38,30 @@ export const BUNDLES: Bundle[] = [
   },
 ];
 
-/** Rows are `headword \t pos \t definition \t examples`; see ATTRIBUTION.md. */
-async function readBundle(path: string, bundle: Bundle): Promise<UpsertEntry[]> {
-  const entries: UpsertEntry[] = [];
+/**
+ * Rows are `headword \t pos \t definition \t examples`; see ATTRIBUTION.md.
+ *
+ * Inserted in batches while streaming rather than collected into one array.
+ * Holding all 207k English entries at once peaked at 255 MB, which is half of
+ * a small hosting instance and risks the process being killed during its very
+ * first boot — a failure that looks like nothing at all in the logs. Batched,
+ * the same load stays flat.
+ */
+const BATCH_SIZE = 5_000;
+
+async function loadBundle(path: string, bundle: Bundle): Promise<number> {
   const stream = createReadStream(path).pipe(createGunzip());
   const rl = createInterface({ input: stream, crlfDelay: Infinity });
+
+  let batch: UpsertEntry[] = [];
+  let total = 0;
 
   for await (const line of rl) {
     if (!line) continue;
     const [headword, pos, definition, examples] = line.split('\t');
     if (!headword || !definition) continue;
-    entries.push({
+
+    batch.push({
       lang: bundle.lang,
       source: bundle.source,
       headword,
@@ -56,8 +69,19 @@ async function readBundle(path: string, bundle: Bundle): Promise<UpsertEntry[]> 
       definition,
       examples: examples ? examples.split(' | ').filter(Boolean) : undefined,
     });
+
+    if (batch.length >= BATCH_SIZE) {
+      insertEntries(batch);
+      total += batch.length;
+      batch = [];
+    }
   }
-  return entries;
+
+  if (batch.length) {
+    insertEntries(batch);
+    total += batch.length;
+  }
+  return total;
 }
 
 function alreadyLoaded(source: string): boolean {
@@ -108,10 +132,9 @@ export async function loadBundledDictionaries(
     }
 
     log(`Loading ${bundle.label} …`);
-    const entries = await readBundle(path, bundle);
-    insertEntries(entries);
-    log(`Loaded ${entries.length.toLocaleString()} entries from ${bundle.label}.`);
-    reports.push({ source: bundle.source, label: bundle.label, entries: entries.length, skipped: false });
+    const entries = await loadBundle(path, bundle);
+    log(`Loaded ${entries.toLocaleString()} entries from ${bundle.label}.`);
+    reports.push({ source: bundle.source, label: bundle.label, entries, skipped: false });
   }
 
   return reports;

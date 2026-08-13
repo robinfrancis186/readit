@@ -11,6 +11,9 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     plan: starter
+    # Closest region to India. Page turns and lookups are interactive, so the
+    # round trip is noticeable; pick whatever is nearest to you.
+    region: singapore
     healthCheckPath: /api/health
     envVars:
       - key: HOST
