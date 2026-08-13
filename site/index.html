@@ -80,7 +80,10 @@
         padding: 0.9rem 1rem; overflow-x: auto; font-size: 0.9rem;
       }
       code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
       table { width: 100%; border-collapse: collapse; font-size: 0.94rem; }
+      th, td { white-space: nowrap; }
+      td:nth-child(3) { white-space: normal; }
       th, td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--rule); }
       th { color: var(--soft); font-weight: 500; }
       .note {
@@ -191,6 +194,7 @@
           Both ship with the application and load themselves the first time it starts. Nothing is
           downloaded and nothing needs configuring.
         </p>
+        <div class="table-scroll">
         <table>
           <thead>
             <tr><th>Language</th><th>Dictionary</th><th>Contents</th><th>Licence</th></tr>
@@ -210,6 +214,7 @@
             </tr>
           </tbody>
         </table>
+        </div>
       </section>
 
       <section id="run">
