@@ -1,7 +1,12 @@
 # Putting Readit online
 
-Readit is a Node server with a SQLite database and your book files on disk. That
-shapes every choice here.
+**You probably do not need any of this.** Readit runs on your own computer for
+free — `npm start`, and `npm start -- --lan` to read on a phone that shares your
+Wi-Fi. Hosting solves one problem only: reaching the same library from a device
+that is *not* on your network.
+
+If that is what you want, read on. Readit is a Node server with a SQLite
+database and your book files on disk, and that shapes every choice here.
 
 ## What GitHub Pages can and cannot do
 

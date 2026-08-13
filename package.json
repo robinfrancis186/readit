@@ -12,12 +12,13 @@
     "dev:server": "npm run dev --workspace server",
     "dev:web": "npm run dev --workspace web",
     "build": "npm run build --workspace web && npm run build --workspace server",
-    "start": "npm run start --workspace server",
+    "start": "node scripts/start.mjs",
     "typecheck": "npm run typecheck --workspace server && npm run typecheck --workspace web",
     "test": "npm run test --workspace server",
     "import:stv": "npm run import:stv --workspace server",
     "test:e2e": "node e2e/library.mjs && node e2e/periodical.mjs && node e2e/pwa.mjs",
-    "build:dictionaries": "npm run build:dictionaries --workspace server"
+    "build:dictionaries": "npm run build:dictionaries --workspace server",
+    "start:built": "npm run start --workspace server"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

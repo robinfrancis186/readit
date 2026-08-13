@@ -4,10 +4,11 @@ A personal library for books, magazines, newspapers and PDFs — with a reader
 that turns any selection into a dictionary lookup or a note, and a separate
 editable notebook for every item you read.
 
-Readit runs as a small web app you host yourself. Open it in a browser on a
-desktop, tablet or phone — or install it as an app on Windows, macOS, Android
-and iOS straight from the browser. The library, the notebooks and the
-dictionaries all live in a single SQLite file you own.
+Readit runs on your own computer. It costs nothing, needs no account and no
+internet connection, and your books never leave your machine — the library, the
+notebooks and the dictionaries are one SQLite file and one folder that you own.
+Open it in a browser, or install it as an app on Windows, macOS, Android and
+iOS.
 
 ---
 
@@ -81,63 +82,64 @@ browser's storage quota anyway.
 
 ## Quick start
 
-Requires Node 20 or newer.
+Requires Node 20 or newer. Two commands, once:
 
 ```bash
 npm install
-npm run build
-npm start                  # http://localhost:4000
+npm start          # then open http://localhost:4000
 ```
 
-Both dictionaries ship with Readit and load themselves the first time it
-starts, so word lookup works offline immediately — there is no import step to
-remember.
+`npm start` builds the app the first time, and after that only when something
+has changed, so day to day it just opens. Both dictionaries load themselves on
+that first run — there is no import step and nothing is downloaded.
 
-For development, with the API and the web app on separate ports and hot reload:
+Press Ctrl-C to stop it. Nothing runs in the background when you are not using
+it, and nothing is sent anywhere.
+
+### Reading on your phone
+
+While your phone is on the same Wi-Fi as the computer running Readit:
 
 ```bash
-npm run dev                # web on :5173, API on :4000
+npm start -- --lan
+```
+
+It prints the address to type into your phone, something like
+`http://192.168.1.42:4000`. Add it to your home screen and it behaves like an
+app.
+
+Anyone else on that network can reach it too, so on a shared or public network
+set a password:
+
+```bash
+READIT_PASSWORD='a passphrase' npm start -- --lan
 ```
 
 Everything you add lives in `data/` — `data/readit.db` plus the original files
-under `data/library/`. Back up that one directory and you have backed up
-everything. Point it elsewhere with `READIT_DATA_DIR`.
+under `data/library/`. Back up that one folder and you have backed up
+everything. Point it somewhere else with `READIT_DATA_DIR`.
 
-### Putting it online
-
-There is a project page on GitHub Pages describing Readit, deployed from
-`site/`. Readit itself needs a server and a disk, so it cannot run on Pages —
-it runs on your machine, or on a host you control. There is a `Dockerfile`, and
-configs for Fly.io and Render:
+### For development
 
 ```bash
-docker build -t readit .
-docker run -p 4000:4000 -v readit-data:/data \
-  -e READIT_PASSWORD='a long passphrase' readit
+npm run dev        # web on :5173, API on :4000, with hot reload
 ```
 
-**Set a password before exposing it to anything.** Readit has no accounts, so
-without `READIT_PASSWORD` anyone who reaches the URL can read and delete your
-library. With it set, every API route needs a signed session and the app shows a
-sign-in screen.
+### Do you need to host it anywhere?
 
-See [docs/DEPLOY.md](docs/DEPLOY.md) for Fly.io, Render, backups and the
-trade-offs.
+No. Hosting solves exactly one problem: reaching the *same* library from a
+phone that is **not** on your home network. If that does not matter to you,
+stop here — running it locally is free, faster, and keeps your books on your
+own disk.
 
-### Reaching it from your phone
+If it does matter, there is a `Dockerfile` and configs for Fly.io and Render,
+and [docs/DEPLOY.md](docs/DEPLOY.md) walks through it. Set `READIT_PASSWORD`
+before exposing it to anything: Readit has no accounts, so without one, anyone
+who reaches the URL can read and delete your library.
 
-Readit binds to loopback by default, so out of the box it is reachable only
-from the machine running it. To open it on a phone or tablet on the same
-network:
-
-```bash
-HOST=0.0.0.0 npm start     # then browse to http://<that-machine-ip>:4000
-```
-
-Do this only on a network you trust. Readit has no accounts and no
-authentication, so anyone who can reach the port can read *and delete* your
-library. On anything less than a trusted network, put it behind a reverse
-proxy that authenticates, or a VPN/tunnel.
+There is also a [project page](https://robinfrancis186.github.io/readit/) on
+GitHub Pages. That is a description of Readit, not the app — Pages serves
+static files and Readit needs a server and a disk.
 
 ### Configuration
 
@@ -180,7 +182,7 @@ those, the licences, and how to add a dictionary of your own.
 npm test                                    # unit tests
 READIT_SAMPLE_EPUB=/path/to/book.epub npm test   # also exercises real EPUB ingestion
 
-npm run build && npm start                  # in another terminal
+npm start                                   # in another terminal
 READIT_SAMPLE_EPUB=/path/to/book.epub npm run test:e2e
 ```
 
@@ -195,9 +197,9 @@ Three end-to-end suites drive a real browser and fail on any console error:
 - **PWA** — the manifest, icons and iOS tags needed to install, and that the
   app boots offline rather than showing a blank page.
 
-The e2e suites need the built app being served (`npm run build && npm start`),
-not the dev server. Set `CHROMIUM_PATH` if you want to use a Chromium you
-already have rather than Playwright's.
+The e2e suites need the built app being served (`npm start`), not the dev
+server on :5173. Set `READIT_URL` to point them elsewhere, and `CHROMIUM_PATH`
+to use a Chromium you already have rather than Playwright's.
 
 ---
 
