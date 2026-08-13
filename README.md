@@ -1,70 +1,103 @@
 # Readit
 
-A personal library for books, magazines, newspapers and PDFs — with a reader
-that turns any selection into a dictionary lookup or a note, and a separate
-editable notebook for every item you read.
+[![CI](https://github.com/robinfrancis186/readit/actions/workflows/ci.yml/badge.svg)](https://github.com/robinfrancis186/readit/actions/workflows/ci.yml)
 
-Readit runs on your own computer. It costs nothing, needs no account and no
-internet connection, and your books never leave your machine — the library, the
-notebooks and the dictionaries are one SQLite file and one folder that you own.
-Open it in a browser, or install it as an app on Windows, macOS, Android and
-iOS.
+One searchable library for your books, magazines, newspapers and PDFs — with a
+reader that turns any selection into a dictionary lookup or a note.
+
+Readit runs on your own computer. No account, no subscription, no connection
+needed. Your books never leave your machine: the library, the notebooks and the
+dictionaries are one SQLite file and one folder that belong to you.
+
+![Reading A Feast of Vultures with the dictionary popup open over the word "corruption"](site/images/reader.png)
+
+---
+
+## Run it
+
+Node 20 or newer.
+
+```bash
+git clone https://github.com/robinfrancis186/readit.git
+cd readit
+npm install
+npm start          # open http://localhost:4000
+```
+
+That's the whole setup. `npm start` builds on the first run and afterwards only
+when something changed, so day to day it just opens. Both dictionaries — 355,671
+entries across Malayalam and English — load themselves on that first run.
+Nothing is downloaded and there is no import step to remember.
+
+Ctrl-C stops it. Nothing runs in the background when you aren't using it.
+
+### On your phone
+
+While the phone shares your Wi-Fi:
+
+```bash
+npm start -- --lan
+```
+
+It prints the address to type in — something like `http://192.168.1.42:4000`.
+Add it to your home screen and it behaves like an app. On a network you don't
+control, set a password first:
+
+```bash
+READIT_PASSWORD='a passphrase' npm start -- --lan
+```
+
+---
+
+## How you actually use it
+
+1. **Add a book.** Drag an EPUB or PDF onto *Add to library*. Readit reads the
+   title, authors, language, publisher, date, ISBN and cover out of the file and
+   indexes the full text. Correct anything it got wrong, and add edition, genres
+   or an issue date.
+2. **Read it.** EPUBs paginate with a table of contents; PDFs render with a real
+   text layer, so the words are selectable rather than a picture. Font size and
+   your place are remembered.
+3. **Select a word.** Its meanings appear immediately, offline, in Malayalam or
+   English.
+4. **Keep what matters.** *Add to notes* files the passage in that book's
+   reading notes, recording the chapter it came from. *Save word* files the word
+   with the meanings you were shown.
+5. **Find it again later.** Both notebooks are editable, searchable by keyword
+   and by date range, and exportable to Markdown.
+
+![The library with faceted filters](site/images/library.png)
 
 ---
 
 ## What it does
 
-**Collect and classify.** Import EPUB and PDF files. Readit reads the metadata
-already inside them — title, subtitle, authors, language, publisher,
-publication date, ISBN, series, cover — and indexes the full text. Anything it
-gets wrong (or a file never carried) you can edit: type, edition, genres,
-issue date, issue number, volume.
+**Collects and classifies.** Filter by type, language, author, genre, publisher,
+series, year range and issue-date range, in any combination, with live counts on
+every facet. Search titles and authors, or search *inside* a book and jump
+straight to the passage.
 
-**Find things.** Filter the library by type, language, author, genre,
-publisher, series, year range and issue-date range, in any combination, with
-live counts on every facet. Search titles and authors, or search *inside* a
-book and jump straight to the passage.
-
-**Read.** EPUBs render paginated with a table of contents; PDFs render with a
-real text layer, so text is genuinely selectable rather than a picture of
-words. Font size and reading position are remembered.
-
-**Look words up while reading.** Select a word or phrase and a popup appears
-with its meanings, offline, in both languages — no API key and no connection.
-Malayalam is agglutinative, so lookup strips case and postpositional suffixes
-to reach the headword: select `ജനാധിപത്യത്തിന്റെ` and you get `ജനാധിപത്യം`. It
-also folds the two ways Malayalam writes its chillu letters, so a word from a
-modern EPUB matches a dictionary digitised the older way.
-
-**Keep two notebooks per item.** Every item automatically gets:
-
-- **Reading notes** — excerpts you select while reading, each recording the
-  chapter or page it came from, with a link back to it.
-- **Word list** — words you looked up, saved together with the meanings shown
-  at the time.
-
-Both are named with the particulars of their source, so a notebook is
-identifiable on its own:
+**Two notebooks for every item**, created automatically and named with the
+particulars of their source, so a notebook is identifiable on its own:
 
 > Reading notes — A Feast of Vultures: The Hidden Business of Democracy in
 > India — Josy Joseph — HarperCollins India — 2016
 
-Both are laid out as books with numbered pages, and both are editable — click
-into an excerpt and type. Both can be searched by keyword and by date range,
-and exported to Markdown.
+Both are laid out as books with numbered pages. Click into an excerpt and type.
 
-**Periodicals are handled as periodicals.** For a magazine or newspaper, the
-reading notes get a separate page per issue date, so a title you follow over
-months reads chronologically. Word lists page by the date you read them.
+![Reading notes holding a saved excerpt](site/images/notes.png)
 
-Looking the same word up twice in one sitting will not leave two identical
-entries — Readit says it is already on today's page. Meeting it again on a
-later day *does* record a second entry, because that is a genuine second
-sighting in a new context. Excerpts are never de-duplicated: the same passage
-may legitimately be quoted twice.
+**Periodicals are handled as periodicals.** A magazine or newspaper gets a
+separate notebook page per issue date, so a title you follow over months reads
+chronologically. Word lists page by the date you read them.
 
-**Install it as an app.** Readit is a progressive web app, so it installs
-without an app store and runs in its own window with its own icon:
+Looking the same word up twice in one sitting won't leave two identical entries
+— Readit says it's already on today's page. Meeting it again on a later day
+*does* record a second entry, because that's a genuine second sighting in a new
+context. Excerpts are never de-duplicated: the same passage may be quoted twice
+on purpose.
+
+**Installs as an app.** Readit is a progressive web app — no app store:
 
 | Platform | How |
 | --- | --- |
@@ -72,138 +105,103 @@ without an app store and runs in its own window with its own icon:
 | Android | Chrome → menu → *Install app* |
 | iOS / iPadOS | Safari → Share → *Add to Home Screen* |
 
-Installed, it opens instantly and its shell still loads without a connection,
-so you get a real explanation rather than a browser error page. Your library
-itself is served by the API and needs the server reachable — Readit never
-caches book files or notes, which would go stale and would not fit in a
-browser's storage quota anyway.
+Installed, it opens instantly and its shell still loads without a connection, so
+you get a real explanation rather than a browser error page.
 
 ---
 
-## Quick start
+## Dictionaries
 
-Requires Node 20 or newer. Two commands, once:
+Two are bundled and load on first start. Nothing to download, no API key:
 
-```bash
-npm install
-npm start          # then open http://localhost:4000
-```
+| Language | Dictionary | Contents | Size |
+| --- | --- | --- | --- |
+| Malayalam | **Datuk** | 148,331 definitions for 83,610 words | 2.6 MB |
+| English | **WordNet 3.1** | 207,272 senses with examples | 4.2 MB |
 
-`npm start` builds the app the first time, and after that only when something
-has changed, so day to day it just opens. Both dictionaries load themselves on
-that first run — there is no import step and nothing is downloaded.
+![The dictionary page resolving a Malayalam word against both sources](site/images/dictionary.png)
 
-Press Ctrl-C to stop it. Nothing runs in the background when you are not using
-it, and nothing is sent anywhere.
+Malayalam is agglutinative, so a word in running text is rarely the word in the
+dictionary. Lookup strips case and postpositional suffixes to reach the
+headword — select `ജനാധിപത്യത്തിന്റെ` and you get `ജനാധിപത്യം` — and restores the
+anusvara or virama a suffix displaces. It also folds the two ways Malayalam
+writes its chillu letters (ൺ ൻ ർ ൽ ൾ ൿ), so a word from a modern EPUB matches a
+dictionary digitised the older way. Without that folding, 38% of the bundled
+Malayalam vocabulary is unreachable.
 
-### Reading on your phone
+Datuk explains a Malayalam word *in Malayalam*, so a few dozen Malayalam →
+English glosses are bundled too, for when you want the English meaning. Every
+source is labelled and results from all of them appear together.
 
-While your phone is on the same Wi-Fi as the computer running Readit:
+Optional extras: ശബ്ദതാരാവലി via `npm run import:stv`, and Oxford as a live
+provider with an API key. See [docs/DICTIONARIES.md](docs/DICTIONARIES.md) for
+those, the licences, and how to add a dictionary of your own.
 
-```bash
-npm start -- --lan
-```
+---
 
-It prints the address to type into your phone, something like
-`http://192.168.1.42:4000`. Add it to your home screen and it behaves like an
-app.
-
-Anyone else on that network can reach it too, so on a shared or public network
-set a password:
-
-```bash
-READIT_PASSWORD='a passphrase' npm start -- --lan
-```
+## Configuration
 
 Everything you add lives in `data/` — `data/readit.db` plus the original files
-under `data/library/`. Back up that one folder and you have backed up
-everything. Point it somewhere else with `READIT_DATA_DIR`.
-
-### For development
-
-```bash
-npm run dev        # web on :5173, API on :4000, with hot reload
-```
-
-### Do you need to host it anywhere?
-
-No. Hosting solves exactly one problem: reaching the *same* library from a
-phone that is **not** on your home network. If that does not matter to you,
-stop here — running it locally is free, faster, and keeps your books on your
-own disk.
-
-If it does matter, there is a `Dockerfile` and configs for Fly.io and Render,
-and [docs/DEPLOY.md](docs/DEPLOY.md) walks through it. Set `READIT_PASSWORD`
-before exposing it to anything: Readit has no accounts, so without one, anyone
-who reaches the URL can read and delete your library.
-
-There is also a [project page](https://robinfrancis186.github.io/readit/) on
-GitHub Pages. That is a description of Readit, not the app — Pages serves
-static files and Readit needs a server and a disk.
-
-### Configuration
+under `data/library/`. Back up that one folder and you've backed up everything.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `PORT` | `4000` | HTTP port |
 | `HOST` | `127.0.0.1` | Bind address. `0.0.0.0` exposes it to your network |
 | `READIT_DATA_DIR` | `./data` | Database, imported files, covers |
-| `READIT_MAX_UPLOAD` | `536870912` | Upload size limit in bytes |
 | `READIT_PASSWORD` | – | Require a password. Essential on any public host |
 | `READIT_SESSION_DAYS` | `30` | How long a sign-in lasts |
+| `READIT_MAX_UPLOAD` | `536870912` | Upload size limit, in bytes |
 | `OXFORD_APP_ID` / `OXFORD_APP_KEY` | – | Enables the Oxford provider |
 
----
+### Do you need to host it anywhere?
 
-## Dictionaries
+Probably not. Hosting solves one problem: reaching the *same* library from a
+device that isn't on your network. If that doesn't matter to you, stop here.
 
-Two dictionaries are bundled and load on first start. Nothing is downloaded and
-nothing needs configuring:
+If it does, there's a `Dockerfile` and configs for Fly.io and Render;
+[docs/DEPLOY.md](docs/DEPLOY.md) walks through it. Set `READIT_PASSWORD` before
+exposing it to anything — Readit has no accounts, so without one anyone who
+reaches the URL can read *and delete* your library.
 
-| Language | Dictionary | Size |
-| --- | --- | --- |
-| Malayalam | **Datuk** — Malayalam–Malayalam, 148,331 definitions for 83,610 words | 2.6 MB |
-| English | **WordNet 3.1** — 207,272 senses with examples | 4.2 MB |
-
-A few dozen Malayalam → English glosses are included too, since Datuk explains a
-Malayalam word *in Malayalam* and a reader often wants the English meaning.
-Every source is labelled in the popup, and results from all of them appear
-together.
-
-Optional extras: ശബ്ദതാരാവലി with `npm run import:stv`, and Oxford as a live
-provider with an API key. See [docs/DICTIONARIES.md](docs/DICTIONARIES.md) for
-those, the licences, and how to add a dictionary of your own.
+There's also a [project page](https://robinfrancis186.github.io/readit/) on
+GitHub Pages. That's a description of Readit, not the app — Pages serves static
+files and Readit needs a server and a disk.
 
 ---
 
-## Tests
+## Development
 
 ```bash
-npm test                                    # unit tests
-READIT_SAMPLE_EPUB=/path/to/book.epub npm test   # also exercises real EPUB ingestion
+npm run dev        # web on :5173, API on :4000, with hot reload
+npm run typecheck
+```
 
-npm start                                   # in another terminal
+### Tests
+
+```bash
+npm test                                          # unit tests
+READIT_SAMPLE_EPUB=/path/to/book.epub npm test    # also exercises real EPUB ingestion
+
+npm start                                         # in another terminal
 READIT_SAMPLE_EPUB=/path/to/book.epub npm run test:e2e
 ```
 
 Three end-to-end suites drive a real browser and fail on any console error:
 
-- **Book** — import an EPUB, read it, select text, look a word up, save and
-  edit notes, search and export them.
+- **Book** — import an EPUB, read it, select text, look a word up, save and edit
+  notes, search and export them.
 - **Periodical** — import a PDF newspaper with an issue date, read it through
-  pdf.js's text layer, look up English and Malayalam words, and confirm
-  excerpts are filed on a page of their own for that issue. Uses a generated
-  fixture (`node e2e/fixtures/make-newspaper.mjs`).
-- **PWA** — the manifest, icons and iOS tags needed to install, and that the
-  app boots offline rather than showing a blank page.
+  pdf.js's text layer, look up an English and a Malayalam word, and confirm
+  excerpts are filed on a page of their own for that issue.
+- **PWA** — the manifest, icons and iOS tags needed to install, and that the app
+  boots offline rather than showing a blank page.
 
-The e2e suites need the built app being served (`npm start`), not the dev
-server on :5173. Set `READIT_URL` to point them elsewhere, and `CHROMIUM_PATH`
-to use a Chromium you already have rather than Playwright's.
+They need the built app being served (`npm start`), not the dev server. Set
+`READIT_URL` to point them elsewhere and `CHROMIUM_PATH` to use a Chromium you
+already have.
 
----
-
-## How it is put together
+### How it is put together
 
 ```
 server/   Fastify + SQLite (better-sqlite3). REST API, EPUB/PDF ingestion,
@@ -222,34 +220,45 @@ The API is deliberately separate from the UI. Everything the web app does goes
 through `/api/*`, which is what a native desktop or mobile client would talk to
 later; the browser app is simply the first client.
 
-### Notes on the data model
+The data model, in four tables that matter:
 
 - `items` — one row per physical thing: a book, a magazine issue, a newspaper
   issue, a loose PDF. Periodical fields stay null for books.
-- `item_text` — extracted text, one row per EPUB spine entry or PDF page. This
-  is what in-book search matches, and what lets an excerpt say where it came
-  from.
+- `item_text` — extracted text, one row per EPUB spine entry or PDF page. This is
+  what in-book search matches, and what lets an excerpt say where it came from.
 - `documents` / `doc_pages` / `entries` — the notebooks, their pages, and the
   excerpts and words on them.
-- `dict_entries` — the local dictionary store the importers fill.
+- `dict_entries` — the local dictionary store.
 
 ---
 
-## Status and limits
+## Limits
 
 Readit is single-user by design: one library, one optional password, no
-accounts. It binds to loopback unless you set `HOST`, and a public deployment
-should always set `READIT_PASSWORD`. Sharing the password shares everything,
-including deletion.
+accounts. Sharing the password shares everything, including deletion. On one
+server with SQLite on one disk it suits one reader well, and does not survive
+being scaled out.
 
-Installing it as an app covers Windows, Android and iOS from one codebase.
-Fully native applications are not built; the API is separate from the UI so
-they can be added without reworking the server.
+Not built:
 
-Also not yet built: OCR for scanned PDFs that carry no text layer (they will
-import and display, but not be searchable), reading book files offline, and
-sync between devices.
+- **OCR.** A scanned PDF with no text layer will import and display, but its
+  text can't be searched or selected, so no lookups and no excerpts from it.
+- **Offline reading.** The installed app opens without a connection but needs
+  the server for its contents.
+- **Sync between devices.** There is one library on one machine that every
+  device talks to.
+- **Native applications.** Installing the PWA covers Windows, Android and iOS
+  from one codebase; the separate API means native clients could be added
+  without reworking the server.
 
-One caution for iOS: Safari evicts service worker caches for sites that have
-not been opened in a while, so an installed copy may need a connection on its
-first launch after a long gap.
+On iOS, Safari evicts service worker caches for sites left unopened for a while,
+so an installed copy may need a connection on its first launch after a gap.
+
+---
+
+## Licence and credits
+
+Readit's own source is in this repository. The bundled dictionary data belongs
+to its authors and keeps its own licence — **Datuk** under ODbL, **WordNet**
+under the WordNet licence. See
+[`server/data/dictionaries/ATTRIBUTION.md`](server/data/dictionaries/ATTRIBUTION.md).
