@@ -1,25 +1,36 @@
 # Dictionaries
 
-Readit looks words up from a local SQLite table (`dict_entries`), filled by
-importers, with an optional live provider for Oxford. Every source is tagged,
-so results from several dictionaries appear side by side in the popup and you
-can always tell which is which.
+Readit looks words up from a local SQLite table (`dict_entries`). Malayalam and
+English both work offline out of the box — the dictionaries are bundled with
+the application. Further sources can be imported on top, and Oxford can be
+added as a live provider. Every source is tagged, so results from several
+dictionaries appear side by side in the popup and you can always tell which is
+which.
 
-## English — WordNet (offline, default)
+## What is bundled
+
+Two dictionaries are committed to the repository under
+`server/data/dictionaries/` and load themselves the first time Readit starts.
+No download, no API key, no import step:
+
+| File | Language | Contents | Licence |
+| --- | --- | --- | --- |
+| `datuk-ml.tsv.gz` | Malayalam | 148,331 definitions for 83,610 words | ODbL |
+| `wordnet-en.tsv.gz` | English | 207,272 senses with examples | WordNet 3.0 |
+
+Loading takes a few seconds once; afterwards startup is two `COUNT` queries.
+Sources, licences and the file format are documented in
+`server/data/dictionaries/ATTRIBUTION.md`.
+
+To refresh them when the upstream data changes:
 
 ```bash
-npm run import:wordnet
+npm run build:dictionaries
 ```
 
-Imports WordNet 3.1 from the `wordnet-db` package: roughly 207,000 senses
-across nouns, verbs, adjectives and adverbs, with example sentences. No network
-access, no API key. This is the default English dictionary.
-
-To use a WordNet installation of your own:
-
-```bash
-WORDNET_DICT_DIR=/usr/share/wordnet npm run import:wordnet
-```
+That downloads Datuk and reads WordNet from the `wordnet-db` dev dependency,
+then rewrites both `.tsv.gz` files. Point it at local copies with `DATUK_YAML`
+and `WORDNET_DICT_DIR` if you would rather not download anything.
 
 ## English — Oxford (optional, live)
 
@@ -32,7 +43,7 @@ export OXFORD_APP_KEY=your-app-key
 npm start
 ```
 
-Oxford is consulted only when the local dictionaries have nothing for a word,
+Oxford is consulted only when the bundled dictionaries have nothing for a word,
 so normal reading stays instant and offline. Get credentials at
 <https://developer.oxforddictionaries.com/>. The endpoint is the v2 Entries
 API; adjust `BASE` in `server/src/dictionary/oxford.ts` if your plan uses the
@@ -40,9 +51,10 @@ production host rather than the sandbox.
 
 ## Malayalam — ശബ്ദതാരാവലി (Sabdatharavali)
 
-Readit ships a ~70-word starter list so Malayalam lookup works the moment you
-install it. For the real dictionary, import Sayahna's edition of
-ശബ്ദതാരാവലി from <https://stv.sayahna.org>:
+Malayalam already works offline through the bundled Datuk corpus. ശബ്ദതാരാവലി
+is an *additional* source — importing it does not replace Datuk, and results
+from both appear together, labelled. Import Sayahna's edition from
+<https://stv.sayahna.org>:
 
 ```bash
 npm run import:stv
@@ -81,6 +93,22 @@ npm run import:stv -- --limit 2 --dump ./raw
 # inspect ./raw/stv-a1.html, add a strategy, then:
 npm run import:stv -- --from ./raw
 ```
+
+### Chillu letters
+
+Malayalam writes six letters — ൺ ൻ ർ ൽ ൾ ൿ — in two ways. Modern text uses the
+atomic characters; older digitisations, Datuk included, write consonant +
+virama + ZWJ. They are the same letter and must fold to one lookup key, or a
+word selected from a modern EPUB never matches. This is not a marginal case:
+folding corrected 30,445 of the 79,590 Malayalam headwords, 38% of the corpus.
+
+`normalise` folds legacy sequences to the atomic form *before* stripping
+zero-width joiners, since stripping first would destroy the very sequence that
+identifies a chillu.
+
+If you change `normalise` in a way that alters existing keys, bump
+`NORMALISATION_VERSION` in `server/src/dictionary/index.ts`. On the next start
+Readit recomputes every stored key rather than silently failing to match.
 
 ### How Malayalam lookup works
 
@@ -138,11 +166,15 @@ also needs a branch in `detectLang` and a suffix list in
 
 ## Licensing
 
-Readit ships no dictionary content beyond the small Malayalam starter list. The
-importers fetch or read data from sources with their own terms:
+Readit bundles two dictionaries and can import more. Each carries its own
+terms:
 
 - **WordNet** — Princeton University's WordNet licence, redistributable with
-  attribution.
+  attribution. Bundled; see `server/data/dictionaries/LICENSE-wordnet.txt`.
+- **Datuk** — ODC Open Database License (ODbL) v1.0. Bundled; see
+  `server/data/dictionaries/LICENSE-datuk.txt`. ODbL is share-alike: publishing
+  the database or a derivative keeps it under ODbL with attribution. That binds
+  the data, not Readit's source code.
 - **ശബ്ദതാരാവലി via Sayahna** — check the terms at <https://stv.sayahna.org>
   before redistributing anything you import.
 - **Oxford** — commercial licence; results are fetched live and are not stored.

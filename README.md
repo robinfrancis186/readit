@@ -29,10 +29,11 @@ real text layer, so text is genuinely selectable rather than a picture of
 words. Font size and reading position are remembered.
 
 **Look words up while reading.** Select a word or phrase and a popup appears
-with its meanings — Malayalam from ശബ്ദതാരാവലി (Sabdatharavali), English from
-WordNet or the Oxford API. Malayalam is agglutinative, so lookup strips case
-and postpositional suffixes to reach the headword: select `ജനാധിപത്യത്തിന്റെ`
-and you get `ജനാധിപത്യം`.
+with its meanings, offline, in both languages — no API key and no connection.
+Malayalam is agglutinative, so lookup strips case and postpositional suffixes
+to reach the headword: select `ജനാധിപത്യത്തിന്റെ` and you get `ജനാധിപത്യം`. It
+also folds the two ways Malayalam writes its chillu letters, so a word from a
+modern EPUB matches a dictionary digitised the older way.
 
 **Keep two notebooks per item.** Every item automatically gets:
 
@@ -84,10 +85,13 @@ Requires Node 20 or newer.
 
 ```bash
 npm install
-npm run import:wordnet     # offline English dictionary (~207k senses)
 npm run build
 npm start                  # http://localhost:4000
 ```
+
+Both dictionaries ship with Readit and load themselves the first time it
+starts, so word lookup works offline immediately — there is no import step to
+remember.
 
 For development, with the API and the web app on separate ports and hot reload:
 
@@ -128,12 +132,22 @@ proxy that authenticates, or a VPN/tunnel.
 
 ## Dictionaries
 
-English works offline out of the box after `npm run import:wordnet`. Malayalam
-ships with a small starter word list so lookup works immediately; import the
-full ശബ്ദതാരാവലി with `npm run import:stv`.
+Two dictionaries are bundled and load on first start. Nothing is downloaded and
+nothing needs configuring:
 
-See [docs/DICTIONARIES.md](docs/DICTIONARIES.md) for the importers, the Oxford
-setup, and how to add a dictionary of your own.
+| Language | Dictionary | Size |
+| --- | --- | --- |
+| Malayalam | **Datuk** — Malayalam–Malayalam, 148,331 definitions for 83,610 words | 2.6 MB |
+| English | **WordNet 3.1** — 207,272 senses with examples | 4.2 MB |
+
+A few dozen Malayalam → English glosses are included too, since Datuk explains a
+Malayalam word *in Malayalam* and a reader often wants the English meaning.
+Every source is labelled in the popup, and results from all of them appear
+together.
+
+Optional extras: ശബ്ദതാരാവലി with `npm run import:stv`, and Oxford as a live
+provider with an API key. See [docs/DICTIONARIES.md](docs/DICTIONARIES.md) for
+those, the licences, and how to add a dictionary of your own.
 
 ---
 

@@ -34,12 +34,35 @@ export function detectLang(text: string): Lang {
 }
 
 /**
- * Normalise a headword for lookup: NFC-compose, drop the zero-width joiners
- * Malayalam text is littered with, strip surrounding punctuation, lowercase.
+ * Malayalam writes six "chillu" letters two ways. Modern text uses the atomic
+ * characters (ൻ ർ ൽ ൾ ൺ ൿ); older digitisations — including the bundled Datuk
+ * corpus — write consonant + virama + ZWJ. Both must fold to one form or a word
+ * a reader selects from a modern EPUB never matches the dictionary, and words
+ * ending in a chillu are a large share of the language.
+ */
+const CHILLU: Array<[legacy: RegExp, atomic: string]> = [
+  [/ണ്‍/g, 'ൺ'],
+  [/ന്‍/g, 'ൻ'],
+  [/ര്‍/g, 'ർ'],
+  [/ല്‍/g, 'ൽ'],
+  [/ള്‍/g, 'ൾ'],
+  [/ക്‍/g, 'ൿ'],
+];
+
+export function foldChillu(word: string): string {
+  let out = word;
+  for (const [legacy, atomic] of CHILLU) out = out.replace(legacy, atomic);
+  return out;
+}
+
+/**
+ * Normalise a headword for lookup: NFC-compose, fold chillu, drop zero-width
+ * joiners, strip surrounding punctuation, lowercase.
  */
 export function normalise(word: string): string {
-  return word
-    .normalize('NFC')
+  return foldChillu(word.normalize('NFC'))
+    // Only after folding: stripping the joiners first would destroy the very
+    // sequence that identifies a legacy chillu.
     .replace(/[​-‍﻿]/g, '')
     // PDF text layers emit NULs and other control codes where a font was
     // missing a glyph; they must not end up inside a lookup key.
@@ -215,8 +238,8 @@ export async function lookup(rawQuery: string, langHint?: Lang): Promise<LookupR
 
   const notice = countEntries(lang) === 0
     ? lang === 'ml'
-      ? 'No Malayalam dictionary data is loaded yet. Run `npm run import:stv` to import Sabdatharavali.'
-      : 'No English dictionary data is loaded yet. Run `npm run import:wordnet`.'
+      ? 'The Malayalam dictionary is not loaded. Restart Readit to load the bundled corpus.'
+      : 'The English dictionary is not loaded. Restart Readit to load the bundled corpus.'
     : undefined;
 
   return { query, lang, results: [], notice };
@@ -283,6 +306,53 @@ export const insertEntries = db.transaction((entries: UpsertEntry[]) => {
     });
   }
 });
+
+/**
+ * Bumped whenever `normalise` changes meaning. The stored headword_norm keys
+ * were computed by an older version and would silently stop matching, so they
+ * are recomputed in place rather than requiring a reinstall.
+ *
+ * 2 — fold legacy chillu (consonant + virama + ZWJ) to the atomic letters.
+ */
+export const NORMALISATION_VERSION = 2;
+
+export function renormaliseIfNeeded(log: (message: string) => void = () => {}): number {
+  const row = db.prepare("SELECT value FROM settings WHERE key = 'dict_norm_version'").get() as
+    | { value: string }
+    | undefined;
+  const current = Number(row?.value ?? 0);
+  if (current === NORMALISATION_VERSION) return 0;
+
+  const total = db.prepare('SELECT COUNT(*) AS n FROM dict_entries').get() as { n: number };
+  let changed = 0;
+
+  if (total.n > 0) {
+    log(`Re-normalising ${total.n.toLocaleString()} dictionary keys …`);
+    const rows = db.prepare('SELECT id, headword, headword_norm FROM dict_entries').all() as Array<{
+      id: number;
+      headword: string;
+      headword_norm: string;
+    }>;
+    const update = db.prepare('UPDATE dict_entries SET headword_norm = ? WHERE id = ?');
+    const run = db.transaction(() => {
+      for (const r of rows) {
+        const next = normalise(r.headword);
+        if (next !== r.headword_norm) {
+          update.run(next, r.id);
+          changed++;
+        }
+      }
+    });
+    run();
+    log(`Re-normalised ${changed.toLocaleString()} keys.`);
+  }
+
+  db.prepare(
+    "INSERT INTO settings (key, value) VALUES ('dict_norm_version', ?) " +
+      'ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+  ).run(String(NORMALISATION_VERSION));
+  return changed;
+}
 
 export function clearSource(source: string): void {
   db.prepare('DELETE FROM dict_entries WHERE source = ?').run(source);

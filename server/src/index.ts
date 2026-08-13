@@ -7,6 +7,8 @@ import { sep } from 'node:path';
 import { ZodError } from 'zod';
 import { HOST, IS_EXPOSED, MAX_UPLOAD_BYTES, PORT, WEB_DIST } from './config.js';
 import './db.js';
+import { loadBundledDictionaries } from './dictionary/bundled.js';
+import { renormaliseIfNeeded } from './dictionary/index.js';
 import { seedMalayalamIfEmpty } from './dictionary/seed-ml.js';
 import { dictionaryRoutes } from './routes/dictionary.js';
 import { documentRoutes } from './routes/documents.js';
@@ -69,8 +71,17 @@ if (existsSync(WEB_DIST)) {
   });
 }
 
+// Order matters. On an upgrade this rewrites the existing keys and the bundles
+// below are then skipped; on a fresh install there is nothing to rewrite, so it
+// just records the version and the bundles load already-normalised.
+renormaliseIfNeeded((message) => app.log.info(message));
+
+// Both dictionaries ship with Readit and load themselves on first boot, so a
+// fresh install can look words up in Malayalam and English straight away.
+await loadBundledDictionaries((message) => app.log.info(message));
+
 const seeded = seedMalayalamIfEmpty();
-if (seeded) app.log.info(`Seeded ${seeded} starter Malayalam dictionary entries`);
+if (seeded) app.log.info(`Seeded ${seeded} Malayalam glosses in English`);
 
 await app.listen({ port: PORT, host: HOST });
 app.log.info(`Readit listening on http://${HOST}:${PORT}`);

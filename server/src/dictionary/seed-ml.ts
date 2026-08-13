@@ -1,12 +1,13 @@
 /**
- * A small starter set of Malayalam headwords so word lookup works the moment
- * you install Readit. It is deliberately tiny — the real dictionary comes from
- * `npm run import:stv`, which imports ശബ്ദതാരാവലി from stv.sayahna.org.
+ * English glosses for common Malayalam words.
  *
- * Loaded once on first boot; re-running the STV import does not disturb it,
- * and both sources are shown side by side in the lookup popup.
+ * This is not the Malayalam dictionary — that is the bundled Datuk corpus in
+ * dictionary/bundled.ts, with 83,610 words. Datuk is Malayalam–Malayalam,
+ * though, so these few dozen entries answer the different question a reader
+ * usually has of a Malayalam word: what does it mean in English.
  */
-import { countEntries, insertEntries, type UpsertEntry } from './index.js';
+import { db } from '../db.js';
+import { insertEntries, type UpsertEntry } from './index.js';
 
 export const SEED_SOURCE = 'seed-ml';
 
@@ -81,9 +82,15 @@ const WORDS: Array<[headword: string, definition: string, pos?: string]> = [
   ['ചെറിയ', 'small; little', 'വിശേഷണം'],
 ];
 
-/** Idempotent: only seeds when there is no Malayalam data at all. */
+/**
+ * Idempotent. Scoped to this source rather than to Malayalam as a whole: the
+ * bundled Datuk corpus explains a Malayalam word *in Malayalam*, while these
+ * give the English gloss a reader usually wants. They complement each other and
+ * the popup shows both, labelled.
+ */
 export function seedMalayalamIfEmpty(): number {
-  if (countEntries('ml') > 0) return 0;
+  const row = db.prepare('SELECT COUNT(*) AS n FROM dict_entries WHERE source = ?').get(SEED_SOURCE) as { n: number };
+  if (row.n > 0) return 0;
   const entries: UpsertEntry[] = WORDS.map(([headword, definition, pos]) => ({
     lang: 'ml',
     source: SEED_SOURCE,

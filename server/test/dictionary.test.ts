@@ -6,7 +6,7 @@ const { lookup, normalise, detectLang, insertEntries, searchDefinitions } = awai
   '../src/dictionary/index.js'
 );
 const { seedMalayalamIfEmpty } = await import('../src/dictionary/seed-ml.js');
-const { parseLine } = await import('../src/scripts/import-wordnet.js');
+const { wordnetRows, datukHeadword } = await import('../src/scripts/build-dictionaries.js');
 
 before(() => {
   seedMalayalamIfEmpty();
@@ -27,6 +27,31 @@ describe('normalise', () => {
   it('strips surrounding punctuation and zero-width joiners', () => {
     assert.equal(normalise('  “Vulture,”  '), 'vulture');
     assert.equal(normalise('ഭാഷ‍'), 'ഭാഷ');
+  });
+});
+
+describe('chillu folding', () => {
+  // Malayalam writes these six letters two ways. Older digitisations (Datuk
+  // among them) use consonant + virama + ZWJ; modern text uses the atomic
+  // letter. Unfolded, 38% of the bundled Malayalam vocabulary is unreachable.
+  const pairs: Array<[legacy: string, modern: string]> = [
+    ['മനുഷ്യന്\u200d', 'മനുഷ്യൻ'],
+    ['അധ്യാപകന്\u200d', 'അധ്യാപകൻ'],
+    ['വര്\u200dഷം', 'വർഷം'],
+    ['ആള്\u200d', 'ആൾ'],
+    ['മുന്\u200dപ്', 'മുൻപ്'],
+  ];
+
+  for (const [legacy, modern] of pairs) {
+    it(`folds ${modern} to one key regardless of encoding`, () => {
+      assert.equal(normalise(legacy), normalise(modern));
+      assert.equal(normalise(legacy), modern.toLowerCase());
+    });
+  }
+
+  it('leaves a virama that is not a chillu alone', () => {
+    // No ZWJ, so this is a genuine conjunct, not a chillu.
+    assert.equal(normalise('പുസ്തകം'), 'പുസ്തകം');
   });
 });
 
@@ -96,25 +121,34 @@ describe('definition search', () => {
   });
 });
 
-describe('WordNet parser', () => {
-  it('splits a synset into one entry per word, with examples', () => {
-    const entries = parseLine(
+describe('bundle builder', () => {
+  const cols = (row: string) => row.split('\t');
+
+  it('splits a synset into one row per word, with examples', () => {
+    const rows = wordnetRows(
       '03467517 06 n 02 guitar 0 guitar_player 0 003 @ 03800933 n 0000 | a stringed instrument; "he plays guitar"',
     );
-    assert.equal(entries.length, 2);
-    assert.equal(entries[0].headword, 'guitar');
-    assert.equal(entries[1].headword, 'guitar player');
-    assert.equal(entries[0].pos, 'noun');
-    assert.deepEqual(entries[0].examples, ['he plays guitar']);
-    assert.equal(entries[0].definition, 'a stringed instrument');
+    assert.equal(rows.length, 2);
+    assert.equal(cols(rows[0])[0], 'guitar');
+    assert.equal(cols(rows[1])[0], 'guitar player');
+    assert.equal(cols(rows[0])[1], 'noun');
+    assert.equal(cols(rows[0])[2], 'a stringed instrument');
+    assert.equal(cols(rows[0])[3], 'he plays guitar');
   });
 
   it('strips adjective position markers', () => {
-    const entries = parseLine('00001740 00 a 01 abaxial(a) 0 001 ! 00002098 a 0000 | facing away from the axis');
-    assert.equal(entries[0].headword, 'abaxial');
+    const rows = wordnetRows('00001740 00 a 01 abaxial(a) 0 001 ! 00002098 a 0000 | facing away from the axis');
+    assert.equal(cols(rows[0])[0], 'abaxial');
   });
 
   it('ignores licence header lines', () => {
-    assert.deepEqual(parseLine('  1 This software and database is being provided'), []);
+    assert.deepEqual(wordnetRows('  1 This software and database is being provided'), []);
+  });
+
+  it('strips Datuk homograph markers from headwords', () => {
+    // അ1 and അ2 are separate records for the same written word.
+    assert.equal(datukHeadword('അ1'), 'അ');
+    assert.equal(datukHeadword('അക1'), 'അക');
+    assert.equal(datukHeadword('പകിടി'), 'പകിടി');
   });
 });

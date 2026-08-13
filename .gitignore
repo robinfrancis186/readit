@@ -1,7 +1,11 @@
 node_modules/
 dist/
-data/
 *.log
+
+# The user's library lives in ./data at the repo root. Anchored with a leading
+# slash so it does not also swallow server/data, which holds the bundled
+# dictionaries that ship with the application.
+/data/
 
 # Dictionary importer scratch space
 raw/

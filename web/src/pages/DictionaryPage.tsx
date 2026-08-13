@@ -6,8 +6,9 @@ import { languageName, type DictionaryResult } from '../types';
 type Stats = Awaited<ReturnType<typeof api.dictionaryStats>>;
 
 const SOURCE_LABELS: Record<string, string> = {
+  datuk: 'Datuk (Malayalam–Malayalam)',
   sabdatharavali: 'ശബ്ദതാരാവലി (Sabdatharavali)',
-  'seed-ml': 'Malayalam starter list',
+  'seed-ml': 'Malayalam → English glosses',
   wordnet: 'WordNet (English)',
   oxford: 'Oxford Dictionaries',
 };
@@ -144,9 +145,10 @@ export function DictionaryPage() {
             {stats?.providers.oxford ? 'configured' : 'not configured'}.
           </p>
           <p>
-            Import the full ശബ്ദതാരാവലി with <code className="text-ink">npm run import:stv</code>, and
-            the offline English dictionary with <code className="text-ink">npm run import:wordnet</code>.
-            See <code className="text-ink">docs/DICTIONARIES.md</code>.
+            Malayalam and English both work offline out of the box — the dictionaries ship with
+            Readit. To add ശബ്ദതാരാവലി on top, run{' '}
+            <code className="text-ink">npm run import:stv</code>. See{' '}
+            <code className="text-ink">docs/DICTIONARIES.md</code>.
           </p>
         </div>
       </section>
