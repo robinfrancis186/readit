@@ -28,6 +28,11 @@ RUN npm run build
 # Drop dev dependencies from the tree we are about to copy into the runtime.
 RUN npm prune --omit=dev
 
+# npm workspaces normally hoist every dependency to the root node_modules, but
+# a version conflict makes it nest one under the workspace instead. Guarantee
+# both paths exist so the COPYs below are valid either way.
+RUN mkdir -p /app/server/node_modules /app/web/node_modules
+
 # -------------------------------------------------------------- runtime ---
 FROM node:22-bookworm-slim AS runtime
 
