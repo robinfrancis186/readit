@@ -99,12 +99,27 @@ Everything you add lives in `data/` — `data/readit.db` plus the original files
 under `data/library/`. Back up that one directory and you have backed up
 everything. Point it elsewhere with `READIT_DATA_DIR`.
 
+### Reaching it from your phone
+
+Readit binds to loopback by default, so out of the box it is reachable only
+from the machine running it. To open it on a phone or tablet on the same
+network:
+
+```bash
+HOST=0.0.0.0 npm start     # then browse to http://<that-machine-ip>:4000
+```
+
+Do this only on a network you trust. Readit has no accounts and no
+authentication, so anyone who can reach the port can read *and delete* your
+library. On anything less than a trusted network, put it behind a reverse
+proxy that authenticates, or a VPN/tunnel.
+
 ### Configuration
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `PORT` | `4000` | HTTP port |
-| `HOST` | `0.0.0.0` | Bind address |
+| `HOST` | `127.0.0.1` | Bind address. `0.0.0.0` exposes it to your network |
 | `READIT_DATA_DIR` | `./data` | Database, imported files, covers |
 | `READIT_MAX_UPLOAD` | `536870912` | Upload size limit in bytes |
 | `OXFORD_APP_ID` / `OXFORD_APP_KEY` | – | Enables the Oxford provider |
@@ -183,8 +198,9 @@ later; the browser app is simply the first client.
 ## Status and limits
 
 Readit is single-user and unauthenticated by design: it is meant to be run on
-your own machine or a private host. There are no accounts, so do not expose it
-directly to the internet without putting authentication in front of it.
+your own machine or a private host. It binds to loopback unless you set
+`HOST`, and there are no accounts — so do not expose it to a network you do
+not trust, or to the internet, without putting authentication in front of it.
 
 Installing it as an app covers Windows, Android and iOS from one codebase.
 Fully native applications are not built; the API is separate from the UI so

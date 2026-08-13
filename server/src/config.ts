@@ -19,7 +19,18 @@ export const LIBRARY_DIR = join(DATA_DIR, 'library');
 export const COVER_DIR = join(DATA_DIR, 'covers');
 
 export const PORT = Number(process.env.PORT ?? 4000);
-export const HOST = process.env.HOST ?? '0.0.0.0';
+
+/**
+ * Loopback by default. Readit has no accounts and no authentication, so
+ * binding every interface would put the whole library — and the DELETE
+ * endpoints — in reach of anyone on the same network. Reaching it from a
+ * phone or another machine is a deliberate choice: set HOST=0.0.0.0, and
+ * put it behind something that authenticates if the network is not yours.
+ */
+export const HOST = process.env.HOST ?? '127.0.0.1';
+
+/** True when we are listening on more than loopback, which deserves a warning. */
+export const IS_EXPOSED = !['127.0.0.1', 'localhost', '::1'].includes(HOST);
 
 /** Built web assets, served by the API in production so there is one process. */
 export const WEB_DIST = join(ROOT, 'web', 'dist');
