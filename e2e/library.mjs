@@ -7,7 +7,7 @@
  *
  * Requires the server to be running (npm start).
  */
-import { BASE, openBrowser, makeStep, finish } from './helpers.mjs';
+import { BASE, openBrowser, makeStep, finish, waitForLookup } from './helpers.mjs';
 
 const EPUB = process.env.READIT_SAMPLE_EPUB;
 if (!EPUB) {
@@ -103,8 +103,7 @@ await step('selecting a word opens the dictionary popup', async () => {
     return null;
   });
   if (!found) throw new Error('could not find the word "corruption" on screen');
-  await page.waitForSelector('[role=dialog][aria-label=Selection]', { timeout: 10000 });
-  await page.waitForSelector('text=any of various large diurnal|text=wrongdoing|text=/definition/', { timeout: 5000 }).catch(() => {});
+  await waitForLookup(page);
 });
 
 await step('popup shows a real definition', async () => {
@@ -139,7 +138,7 @@ await step('saving the same word twice in a day does not duplicate it', async ()
       }
     }
   });
-  await page.waitForSelector('[role=dialog][aria-label=Selection]', { timeout: 10000 });
+  await waitForLookup(page);
   await page.click('button:has-text("Save word")');
   await page.waitForSelector('text=/already in today/i', { timeout: 10000 });
 });
@@ -154,7 +153,7 @@ await step('select a passage and add it to reading notes', async () => {
     sel.removeAllRanges();
     sel.addRange(range);
   });
-  await page.waitForSelector('[role=dialog][aria-label=Selection]', { timeout: 10000 });
+  await waitForLookup(page);
   await page.click('button:has-text("Add to notes")');
   await page.waitForSelector('text=Added to reading notes', { timeout: 10000 });
 });

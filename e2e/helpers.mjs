@@ -52,3 +52,20 @@ export function finish(errors, label) {
 }
 
 export const today = () => new Date().toISOString().slice(0, 10);
+
+/**
+ * The popup opens before the lookup resolves and shows "Looking up…" in the
+ * meantime. Asserting on its text straight away is a race — one that only
+ * loses on a cold server, where the first query over 355k rows is slow.
+ */
+export async function waitForLookup(page) {
+  await page.waitForSelector('[role=dialog][aria-label=Selection]', { timeout: 15000 });
+  await page.waitForFunction(
+    () => {
+      const dialog = document.querySelector('[role=dialog][aria-label=Selection]');
+      return Boolean(dialog) && !dialog.textContent.includes('Looking up');
+    },
+    null,
+    { timeout: 20000 },
+  );
+}
