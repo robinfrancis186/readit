@@ -1,15 +1,22 @@
 # Fly.io deployment for Readit.
 #
-#   fly launch --no-deploy --copy-config
-#   fly volumes create readit_data --size 3
+#   fly launch --no-deploy          # pick a unique app name; app names are global
+#   fly volumes create readit_data --size 3 --region bom
 #   fly secrets set READIT_PASSWORD='a long passphrase'
 #   fly deploy
 #
-# The volume is the important part: without it the library is wiped on every
-# redeploy. See docs/DEPLOY.md.
+# Two things matter more than the rest. The volume, because without it the
+# library is wiped on every redeploy. And the password, because Readit has no
+# accounts and a fly.dev URL is public. See docs/DEPLOY.md.
 
+# "readit" is almost certainly taken — app names are global on Fly. `fly launch`
+# will ask for a free one and rewrite this line.
 app = "readit"
-primary_region = "sin"          # Singapore; closest to India. Change as needed.
+
+# Mumbai. Lookups and page turns are interactive, so the round trip is felt on
+# every one; this is the closest region to Kerala. The volume must be created in
+# the same region as the machine.
+primary_region = "bom"
 
 [build]
   dockerfile = "Dockerfile"
@@ -40,7 +47,10 @@ primary_region = "sin"          # Singapore; closest to India. Change as needed.
 [[http_service.checks]]
   interval = "30s"
   timeout = "5s"
-  grace_period = "20s"
+  # Generous, because the very first boot loads 355,671 dictionary entries
+  # before it starts listening. On a shared CPU that takes a while, and a check
+  # that fails during it would restart the machine into the same slow start.
+  grace_period = "90s"
   method = "GET"
   path = "/api/health"
 

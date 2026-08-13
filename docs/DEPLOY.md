@@ -14,8 +14,9 @@ Enabling it is a one-time repository setting only an admin can change:
 
 > Settings → Pages → Build and deployment → Source: **GitHub Actions**
 
-After that, every push to `main` that touches `site/` republishes the page at
-`https://<user>.github.io/readit/`.
+After that, every push to the repository's **default branch** that touches
+`site/` republishes the page at `https://<user>.github.io/readit/`. The workflow
+reads the default branch rather than assuming it is called `main`.
 
 To use Readit from more than one device you need a host that runs Node and keeps
 a disk. The rest of this page covers that.
@@ -55,28 +56,60 @@ you with an empty library.
 
 ## Fly.io
 
-Fly gives a small always-on machine and a persistent volume, which is the
-cheapest fit for something that must keep files.
+Fly gives a small machine and a persistent volume, which is the cheapest fit
+for something that must keep files. This is the recommended route.
 
 ```bash
-fly launch --no-deploy --copy-config     # uses the committed fly.toml
-fly volumes create readit_data --size 3  # GB; grow it later with `fly volumes extend`
+fly launch --no-deploy                                  # pick a unique app name
+fly volumes create readit_data --size 3 --region bom    # GB; same region as the app
 fly secrets set READIT_PASSWORD='a long passphrase'
 fly deploy
+fly open
 ```
 
-Notes:
+Four things to know:
 
-- `primary_region` in `fly.toml` is `sin` (Singapore). Change it to whatever is
-  near you; latency on page turns is noticeable.
-- `auto_stop_machines = "suspend"` lets the machine sleep when idle and wake on
-  the next request. The first request after a sleep is slow.
-- Keep it to **one machine**. The database and the books live on one volume;
-  running two would give you two divergent libraries.
+- **App names are global.** `readit` is taken. `fly launch` asks for a free one
+  and rewrites the `app` line in `fly.toml`; commit that change.
+- **The volume must be in the same region as the machine.** `primary_region` is
+  `bom` (Mumbai) — change both together if you move it.
+- **The volume is the whole point.** Without it, `/data` is container-local and
+  every redeploy starts an empty library.
+- **`READIT_PASSWORD` is a secret, not an env var.** `fly secrets set` keeps it
+  out of the repository and out of `fly.toml`.
+
+`auto_stop_machines = "suspend"` lets the machine sleep when idle and wake on
+the next request, which is most of the saving. The first request after a sleep
+is slow. Set `min_machines_running = 1` if you would rather it stayed up.
+
+Keep it to **one machine**. The database and the books live on one volume;
+running two would give you two divergent libraries. `fly scale count 1` if Fly
+ever gives you more.
+
+### Watching the first boot
+
+```bash
+fly logs
+```
+
+The first start loads the bundled dictionaries before it begins listening, so
+expect a pause and then:
+
+```
+Loaded 207,272 entries from WordNet 3.1 (English).
+Loaded 148,331 entries from Datuk (Malayalam–Malayalam).
+Password protection is on.
+```
+
+Later starts skip that and come up immediately. The health check's grace period
+is set wide enough to cover the first load; a check failing during it would
+restart the machine into the same slow start.
 
 ## Render
 
-`render.yaml` is a blueprint — point Render at the repo and it reads it.
+`render.yaml` is a blueprint — point Render at the repo and it reads it. Use
+**New → Blueprint** rather than New → Web Service, so it reads the committed
+configuration.
 
 Render's **free** web services have no persistent disk, so your library would be
 erased on every deploy. The blueprint therefore asks for a `starter` instance
