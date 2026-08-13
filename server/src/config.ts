@@ -35,6 +35,15 @@ export const IS_EXPOSED = !['127.0.0.1', 'localhost', '::1'].includes(HOST);
 /** Built web assets, served by the API in production so there is one process. */
 export const WEB_DIST = join(ROOT, 'web', 'dist');
 
+/**
+ * Set this to require a password before anything can be read or changed.
+ * Essential on a public host; unnecessary on loopback. See docs/DEPLOY.md.
+ */
+export const READIT_PASSWORD = process.env.READIT_PASSWORD ?? '';
+
+/** How long a sign-in lasts before it has to be repeated. */
+export const SESSION_DAYS = Number(process.env.READIT_SESSION_DAYS ?? 30);
+
 /** Optional Oxford Dictionaries API credentials (see docs/DICTIONARIES.md). */
 export const OXFORD_APP_ID = process.env.OXFORD_APP_ID ?? '';
 export const OXFORD_APP_KEY = process.env.OXFORD_APP_KEY ?? '';

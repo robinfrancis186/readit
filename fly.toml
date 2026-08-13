@@ -1,0 +1,49 @@
+# Fly.io deployment for Readit.
+#
+#   fly launch --no-deploy --copy-config
+#   fly volumes create readit_data --size 3
+#   fly secrets set READIT_PASSWORD='a long passphrase'
+#   fly deploy
+#
+# The volume is the important part: without it the library is wiped on every
+# redeploy. See docs/DEPLOY.md.
+
+app = "readit"
+primary_region = "sin"          # Singapore; closest to India. Change as needed.
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  HOST = "0.0.0.0"
+  PORT = "4000"
+  READIT_DATA_DIR = "/data"
+
+[[mounts]]
+  source = "readit_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 4000
+  force_https = true
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  # One machine, because the SQLite file and the uploaded books live on one
+  # volume. Scaling out would need shared storage and a different database.
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 40
+    hard_limit = 80
+
+[[http_service.checks]]
+  interval = "30s"
+  timeout = "5s"
+  grace_period = "20s"
+  method = "GET"
+  path = "/api/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

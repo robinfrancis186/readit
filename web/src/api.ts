@@ -18,12 +18,15 @@ export class ApiError extends Error {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
+    // Declare a JSON content-type only when there is actually a JSON body.
+    // Sending the header with no body makes Fastify reject the request as
+    // malformed, which is how a bodyless POST like logout silently 400s.
+    const sendsJson = init?.body !== undefined && !(init.body instanceof FormData);
     res = await fetch(path, {
       ...init,
-      headers:
-        init?.body instanceof FormData
-          ? init?.headers
-          : { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+      headers: sendsJson
+        ? { 'Content-Type': 'application/json', ...(init?.headers ?? {}) }
+        : init?.headers,
     });
   } catch {
     // fetch only rejects on a network-level failure. Installed as an app, this
@@ -34,6 +37,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
         : 'You are offline. Your library needs a connection.',
       0,
     );
+  }
+  if (res.status === 401) {
+    // Let the gate re-lock wherever the app happens to be, rather than each
+    // caller having to know about sessions.
+    window.dispatchEvent(new CustomEvent('readit:unauthorised'));
   }
   if (!res.ok) {
     let message = `${res.status} ${res.statusText}`;
@@ -133,6 +141,13 @@ export const api = {
 
   searchDictionary: (q: string, lang?: string) =>
     request<{ results: LookupResponse['results'] }>(`/api/dictionary/search${qs({ q, lang })}`),
+
+  authStatus: () => request<{ required: boolean; signedIn: boolean }>('/api/auth/status'),
+
+  login: (password: string) =>
+    request<{ ok: true }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ password }) }),
+
+  logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
 
   dictionaryStats: () =>
     request<{ sources: Array<{ source: string; lang: string; entries: number }>; providers: { oxford: boolean } }>(

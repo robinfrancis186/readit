@@ -103,6 +103,27 @@ Everything you add lives in `data/` — `data/readit.db` plus the original files
 under `data/library/`. Back up that one directory and you have backed up
 everything. Point it elsewhere with `READIT_DATA_DIR`.
 
+### Putting it online
+
+There is a project page on GitHub Pages describing Readit, deployed from
+`site/`. Readit itself needs a server and a disk, so it cannot run on Pages —
+it runs on your machine, or on a host you control. There is a `Dockerfile`, and
+configs for Fly.io and Render:
+
+```bash
+docker build -t readit .
+docker run -p 4000:4000 -v readit-data:/data \
+  -e READIT_PASSWORD='a long passphrase' readit
+```
+
+**Set a password before exposing it to anything.** Readit has no accounts, so
+without `READIT_PASSWORD` anyone who reaches the URL can read and delete your
+library. With it set, every API route needs a signed session and the app shows a
+sign-in screen.
+
+See [docs/DEPLOY.md](docs/DEPLOY.md) for Fly.io, Render, backups and the
+trade-offs.
+
 ### Reaching it from your phone
 
 Readit binds to loopback by default, so out of the box it is reachable only
@@ -126,6 +147,8 @@ proxy that authenticates, or a VPN/tunnel.
 | `HOST` | `127.0.0.1` | Bind address. `0.0.0.0` exposes it to your network |
 | `READIT_DATA_DIR` | `./data` | Database, imported files, covers |
 | `READIT_MAX_UPLOAD` | `536870912` | Upload size limit in bytes |
+| `READIT_PASSWORD` | – | Require a password. Essential on any public host |
+| `READIT_SESSION_DAYS` | `30` | How long a sign-in lasts |
 | `OXFORD_APP_ID` / `OXFORD_APP_KEY` | – | Enables the Oxford provider |
 
 ---
@@ -186,6 +209,7 @@ server/   Fastify + SQLite (better-sqlite3). REST API, EPUB/PDF ingestion,
 web/      React + Vite + Tailwind. Library, reader, notebooks, dictionary,
           plus the manifest and service worker that make it installable.
 e2e/      Browser tests for the three end-to-end workflows.
+site/     The static project page published to GitHub Pages.
 ```
 
 Search everywhere — the library, inside a book, inside a notebook, and across
@@ -211,10 +235,10 @@ later; the browser app is simply the first client.
 
 ## Status and limits
 
-Readit is single-user and unauthenticated by design: it is meant to be run on
-your own machine or a private host. It binds to loopback unless you set
-`HOST`, and there are no accounts — so do not expose it to a network you do
-not trust, or to the internet, without putting authentication in front of it.
+Readit is single-user by design: one library, one optional password, no
+accounts. It binds to loopback unless you set `HOST`, and a public deployment
+should always set `READIT_PASSWORD`. Sharing the password shares everything,
+including deletion.
 
 Installing it as an app covers Windows, Android and iOS from one codebase.
 Fully native applications are not built; the API is separate from the UI so

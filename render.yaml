@@ -1,0 +1,28 @@
+# Render blueprint for Readit.
+#
+# Render's free web services have no persistent disk, so the library would be
+# lost on every deploy. A disk requires a paid instance — that is why `plan` is
+# `starter` rather than `free`. Fly.io is the cheaper route if that matters;
+# see docs/DEPLOY.md.
+
+services:
+  - type: web
+    name: readit
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /api/health
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: "4000"
+      - key: READIT_DATA_DIR
+        value: /data
+      # Set this in the Render dashboard. Without it the library is public.
+      - key: READIT_PASSWORD
+        sync: false
+    disk:
+      name: readit-data
+      mountPath: /data
+      sizeGB: 3

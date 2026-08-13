@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import 'pdfjs-dist/web/pdf_viewer.css';
 import './index.css';
+import { AuthGate } from './components/AuthGate';
 import { Layout } from './components/Layout';
 import { DictionaryPage } from './pages/DictionaryPage';
 import { DocumentPage } from './pages/DocumentPage';
@@ -34,6 +35,8 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <RouterProvider router={router} future={{ v7_startTransition: true }} />
+    <AuthGate>
+      <RouterProvider router={router} future={{ v7_startTransition: true }} />
+    </AuthGate>
   </React.StrictMode>,
 );

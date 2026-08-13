@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
+import { api } from '../api';
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -23,6 +24,14 @@ const NAV = [
 
 export function Layout() {
   const [theme, setTheme] = useTheme();
+  const [canSignOut, setCanSignOut] = useState(false);
+
+  useEffect(() => {
+    api
+      .authStatus()
+      .then((s) => setCanSignOut(s.required && s.signedIn))
+      .catch(() => {});
+  }, []);
   const next: Record<Theme, Theme> = { system: 'light', light: 'dark', dark: 'system' };
   const icon: Record<Theme, string> = { system: '◐', light: '☀', dark: '☾' };
 
@@ -50,10 +59,22 @@ export function Layout() {
               </NavLink>
             ))}
           </nav>
+          {canSignOut && (
+            <button
+              type="button"
+              className="ml-auto btn px-2.5 py-1 text-sm"
+              onClick={async () => {
+                await api.logout().catch(() => {});
+                window.location.reload();
+              }}
+            >
+              Sign out
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setTheme(next[theme])}
-            className="ml-auto btn px-2.5 py-1 text-sm"
+            className={`${canSignOut ? '' : 'ml-auto'} btn px-2.5 py-1 text-sm`}
             title={`Theme: ${theme}. Click to switch.`}
             aria-label={`Theme: ${theme}. Click to switch.`}
           >

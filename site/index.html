@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Readit — a personal library for books, magazines and PDFs</title>
+    <meta
+      name="description"
+      content="Consolidate books, magazines, newspapers and PDFs into one searchable library. Read them, take excerpts into per-book notebooks, and look words up offline in Malayalam and English."
+    />
+    <link rel="icon" href="images/icon.png" />
+    <meta property="og:title" content="Readit — a personal library" />
+    <meta
+      property="og:description"
+      content="One searchable library for books, magazines, newspapers and PDFs, with excerpt notebooks and an offline Malayalam/English dictionary."
+    />
+    <meta property="og:image" content="images/library.png" />
+    <style>
+      :root {
+        --paper: #faf7f2;
+        --raised: #fff;
+        --ink: #1c1917;
+        --soft: #57534e;
+        --rule: #e7e2d9;
+        --accent: #9a3412;
+        --accent-soft: #fdf0e7;
+        color-scheme: light;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --paper: #1a1917;
+          --raised: #232220;
+          --ink: #ede9e3;
+          --soft: #a8a29e;
+          --rule: #3a3733;
+          --accent: #fb923c;
+          --accent-soft: #33251b;
+          color-scheme: dark;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font: 16px/1.65 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap { max-width: 62rem; margin: 0 auto; padding: 0 1.25rem; }
+      header { padding: 4rem 0 2.5rem; text-align: center; }
+      .logo { width: 68px; height: 68px; border-radius: 16px; }
+      h1 {
+        font: 600 clamp(2rem, 5vw, 3rem)/1.1 "Iowan Old Style", Palatino, Georgia, serif;
+        margin: 1rem 0 0.5rem;
+      }
+      .tagline { color: var(--soft); font-size: 1.125rem; max-width: 34rem; margin: 0 auto; }
+      .cta { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; margin-top: 1.75rem; }
+      .btn {
+        display: inline-block; padding: 0.6rem 1.1rem; border-radius: 0.6rem;
+        border: 1px solid var(--rule); background: var(--raised); color: inherit;
+        text-decoration: none; font-weight: 500;
+      }
+      .btn:hover { border-color: var(--accent); color: var(--accent); }
+      .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+      .btn-primary:hover { color: #fff; filter: brightness(1.08); }
+      section { padding: 2.5rem 0; border-top: 1px solid var(--rule); }
+      h2 { font: 600 1.5rem/1.2 "Iowan Old Style", Palatino, Georgia, serif; margin: 0 0 1rem; }
+      h3 { font-size: 1rem; margin: 0 0 0.25rem; }
+      .grid { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
+      .card { background: var(--raised); border: 1px solid var(--rule); border-radius: 0.75rem; padding: 1.1rem; }
+      .card p { margin: 0; color: var(--soft); font-size: 0.94rem; }
+      figure { margin: 0 0 1.75rem; }
+      figure img {
+        width: 100%; height: auto; display: block;
+        border: 1px solid var(--rule); border-radius: 0.75rem;
+      }
+      figcaption { color: var(--soft); font-size: 0.9rem; margin-top: 0.5rem; }
+      pre {
+        background: var(--raised); border: 1px solid var(--rule); border-radius: 0.6rem;
+        padding: 0.9rem 1rem; overflow-x: auto; font-size: 0.9rem;
+      }
+      code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+      table { width: 100%; border-collapse: collapse; font-size: 0.94rem; }
+      th, td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--rule); }
+      th { color: var(--soft); font-weight: 500; }
+      .note {
+        background: var(--accent-soft); border: 1px solid var(--rule);
+        border-radius: 0.6rem; padding: 0.9rem 1rem; font-size: 0.94rem;
+      }
+      footer { padding: 2.5rem 0 4rem; color: var(--soft); font-size: 0.9rem; text-align: center; }
+      a { color: var(--accent); }
+      .ml { font-family: "Noto Sans Malayalam", Manjari, Rachana, sans-serif; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <img class="logo" src="images/icon.png" alt="" />
+        <h1>Readit</h1>
+        <p class="tagline">
+          One searchable library for your books, magazines, newspapers and PDFs — with a reader that
+          turns any selection into a dictionary lookup or a note.
+        </p>
+        <div class="cta">
+          <a class="btn btn-primary" href="https://github.com/robinfrancis186/readit">Source on GitHub</a>
+          <a class="btn" href="#run">Run it yourself</a>
+        </div>
+      </header>
+
+      <section>
+        <h2>What it does</h2>
+        <div class="grid">
+          <div class="card">
+            <h3>Collects and classifies</h3>
+            <p>
+              Import EPUB and PDF. Readit reads the title, authors, language, publisher, date, ISBN
+              and cover out of the file, then lets you correct anything and add edition, genres and
+              issue details.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Finds things</h3>
+            <p>
+              Filter by type, language, author, genre, publisher, series, year and issue date, with
+              live counts. Search inside a book and jump to the passage.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Reads properly</h3>
+            <p>
+              EPUBs paginate with a table of contents; PDFs render with a real text layer, so the
+              text is genuinely selectable rather than a picture of words.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Looks words up offline</h3>
+            <p>
+              Select a word and its meanings appear — Malayalam and English, no connection and no API
+              key. Inflections resolve to the headword.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Keeps two notebooks per item</h3>
+            <p>
+              Excerpts and looked-up words, each notebook named with the particulars of its source,
+              paginated like a book, editable, and searchable by keyword and date.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Handles periodicals</h3>
+            <p>
+              A magazine or newspaper gets a separate notebook page per issue date, so a title you
+              follow over months reads chronologically.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>What it looks like</h2>
+        <figure>
+          <img src="images/library.png" alt="The library, with faceted filters down the left and book covers in a grid" />
+          <figcaption>The library: filter by type, language, author, genre, publisher, year and issue date.</figcaption>
+        </figure>
+        <figure>
+          <img src="images/reader.png" alt="A book open in the reader with a dictionary popup over the word corruption" />
+          <figcaption>
+            Select any word while reading and the meanings appear, with buttons to save the passage
+            or the word.
+          </figcaption>
+        </figure>
+        <figure>
+          <img src="images/notes.png" alt="A reading-notes document containing a saved excerpt" />
+          <figcaption>
+            Reading notes, named with the particulars of the book, editable in place and searchable
+            by keyword and date.
+          </figcaption>
+        </figure>
+        <figure>
+          <img src="images/dictionary.png" alt="The dictionary page showing a Malayalam word with entries from two sources" />
+          <figcaption>
+            <span class="ml">മനുഷ്യൻ</span> resolved against both bundled dictionaries, each result
+            labelled with where it came from.
+          </figcaption>
+        </figure>
+      </section>
+
+      <section>
+        <h2>Dictionaries, included</h2>
+        <p style="color: var(--soft); margin-top: 0">
+          Both ship with the application and load themselves the first time it starts. Nothing is
+          downloaded and nothing needs configuring.
+        </p>
+        <table>
+          <thead>
+            <tr><th>Language</th><th>Dictionary</th><th>Contents</th><th>Licence</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Malayalam</td>
+              <td><a href="https://github.com/knadh/datuk">Datuk</a></td>
+              <td>148,331 definitions for 83,610 words</td>
+              <td>ODbL</td>
+            </tr>
+            <tr>
+              <td>English</td>
+              <td><a href="https://wordnet.princeton.edu/">WordNet 3.1</a></td>
+              <td>207,272 senses with examples</td>
+              <td>WordNet</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="run">
+        <h2>Run it yourself</h2>
+        <p class="note">
+          This page is static — it is a description of Readit, not the app. Readit stores your
+          library on disk and needs a server, so it runs on your own machine or on a host you
+          control. Your books and notes stay yours.
+        </p>
+        <h3 style="margin-top: 1.5rem">On your machine</h3>
+        <pre><code>git clone https://github.com/robinfrancis186/readit.git
+cd readit
+npm install
+npm run build
+npm start          # http://localhost:4000</code></pre>
+        <h3>With Docker</h3>
+        <pre><code>docker build -t readit .
+docker run -p 4000:4000 -v readit-data:/data \
+  -e READIT_PASSWORD='a long passphrase' readit</code></pre>
+        <p style="color: var(--soft)">
+          To reach it from your phone, or to put it on a host, set a password — Readit has no
+          accounts and anyone who can reach the port can otherwise read and delete your library.
+          Deployment configs for Fly.io and Render are in the repository, and
+          <a href="https://github.com/robinfrancis186/readit/blob/main/docs/DEPLOY.md">docs/DEPLOY.md</a>
+          walks through it.
+        </p>
+        <p style="color: var(--soft)">
+          Once it is running you can install it as an app — Chrome or Edge on desktop, Chrome on
+          Android, or Share → Add to Home Screen on iOS.
+        </p>
+      </section>
+
+      <footer>
+        <p>
+          Readit is open source ·
+          <a href="https://github.com/robinfrancis186/readit">github.com/robinfrancis186/readit</a>
+        </p>
+        <p>
+          Bundled dictionary data belongs to its authors and keeps its own licence: Datuk under ODbL,
+          WordNet under the WordNet licence.
+        </p>
+      </footer>
+    </div>
+  </body>
+</html>

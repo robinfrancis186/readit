@@ -6,6 +6,7 @@ import { existsSync } from 'node:fs';
 import { sep } from 'node:path';
 import { ZodError } from 'zod';
 import { HOST, IS_EXPOSED, MAX_UPLOAD_BYTES, PORT, WEB_DIST } from './config.js';
+import { authRequired, registerAuth } from './auth.js';
 import './db.js';
 import { loadBundledDictionaries } from './dictionary/bundled.js';
 import { renormaliseIfNeeded } from './dictionary/index.js';
@@ -17,6 +18,10 @@ import { libraryRoutes } from './routes/library.js';
 const app = Fastify({
   logger: { level: process.env.LOG_LEVEL ?? 'info' },
   bodyLimit: 16 * 1024 * 1024,
+  // Hosting platforms terminate TLS and proxy through, so the real client IP
+  // and scheme arrive in X-Forwarded-*. Needed for login throttling and for
+  // setting a Secure cookie.
+  trustProxy: true,
 });
 
 await app.register(multipart, {
@@ -42,6 +47,9 @@ app.setErrorHandler((error: unknown, _req, reply) => {
  */
 await app.register(async (api) => {
   await api.register(cors, { origin: true });
+  // Registered inside the API scope so the hook guards the routes below it and
+  // never the static assets.
+  registerAuth(api);
   await api.register(libraryRoutes);
   await api.register(documentRoutes);
   await api.register(dictionaryRoutes);
@@ -86,12 +94,13 @@ if (seeded) app.log.info(`Seeded ${seeded} Malayalam glosses in English`);
 await app.listen({ port: PORT, host: HOST });
 app.log.info(`Readit listening on http://${HOST}:${PORT}`);
 
-if (IS_EXPOSED) {
+if (authRequired()) {
+  app.log.info('Password protection is on.');
+} else if (IS_EXPOSED) {
   app.log.warn(
-    `Bound to ${HOST}, so Readit is reachable from other machines. It has no ` +
-      'authentication — anyone who can reach this port can read and delete your ' +
-      'library. Only do this on a network you trust, or put a proxy that ' +
-      'authenticates in front of it.',
+    `Bound to ${HOST} with no password set, so anyone who can reach this port ` +
+      'can read and delete your library. Set READIT_PASSWORD, or only do this ' +
+      'on a network you trust.',
   );
 } else {
   app.log.info('Bound to loopback only. Set HOST=0.0.0.0 to reach Readit from your phone.');
