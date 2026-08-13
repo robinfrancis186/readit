@@ -9,7 +9,6 @@ name: Deploy project page
 
 on:
   push:
-    branches: [main]
     paths:
       - 'site/**'
       - '.github/workflows/pages.yml'
@@ -27,6 +26,10 @@ concurrency:
 
 jobs:
   deploy:
+    # Publish only from the default branch, whatever it is called. Hard-coding
+    # `main` means nothing deploys in a repository whose default is named
+    # something else.
+    if: github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     environment:
       name: github-pages
