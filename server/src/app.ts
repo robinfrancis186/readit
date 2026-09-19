@@ -12,6 +12,7 @@ import { renormaliseIfNeeded } from './dictionary/index.js';
 import { seedMalayalamIfEmpty } from './dictionary/seed-ml.js';
 import { dictionaryRoutes } from './routes/dictionary.js';
 import { documentRoutes } from './routes/documents.js';
+import { analyticsRoutes } from './routes/analytics.js';
 import { libraryRoutes } from './routes/library.js';
 
 import { initLibrary } from './library-db.js';
@@ -52,6 +53,7 @@ await app.register(async (api) => {
   // never the static assets.
   registerAuth(api);
   await api.register(libraryRoutes);
+  await api.register(analyticsRoutes);
   await api.register(documentRoutes);
   await api.register(dictionaryRoutes);
   api.get('/api/health', async () => ({ ok: true, version: '0.1.0' }));

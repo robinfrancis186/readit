@@ -46,7 +46,7 @@ private Blob objects requiring cleanup. Provider usage limits and charges apply.
 
 ## Verification
 
-The typecheck, production build, 75 automated tests and local browser suites
+The typecheck, production build, 76 automated tests and local browser suites
 passed. Real Turso/Blob checks verified EPUB import, persisted progress and notes,
 a second browser session, a 6 MiB direct upload, exact-byte download, blocked
 anonymous file access and deletion. Live browser checks on
@@ -54,3 +54,18 @@ https://readit-opal.vercel.app also passed PDF import, English/Malayalam selecti
 lookups, issue-dated excerpts, vocabulary saves, and the offline app shell.
 The public deployment is password protected; credentials are excluded from Git.
 Checks cover these workflows, not a guarantee that every possible bug is absent.
+
+## Optional reading analytics
+
+Open **Analytics** in the main navigation and enable tracking. The dashboard
+shows active time, estimated words read, books with activity, daily activity,
+current streak, saved vocabulary/excerpts, and time per book, with 7-day,
+30-day and all-time filters. Tracking defaults off and can be paused.
+
+Only a loaded reader in a visible, focused tab accrues time; two minutes without
+interaction pauses it. EPUB iframe interactions resume activity. Cumulative
+session snapshots sync to the same private database, with retry deduplication
+and server elapsed-time bounds. Words read are explicitly estimated at 200 words
+per minute, not measured text coverage. No historical time is invented. Days use
+the reading device's local calendar; streaks require one minute per day. Deleting
+a book removes its analytics. Concurrent use on separate devices may overlap.

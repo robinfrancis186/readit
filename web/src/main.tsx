@@ -9,6 +9,7 @@ import { DictionaryPage } from './pages/DictionaryPage';
 import { DocumentPage } from './pages/DocumentPage';
 import { ItemPage } from './pages/ItemPage';
 import { LibraryPage } from './pages/LibraryPage';
+import { AnalyticsPage } from './pages/AnalyticsPage';
 import { ReaderPage } from './pages/ReaderPage';
 
 const router = createBrowserRouter([
@@ -18,6 +19,7 @@ const router = createBrowserRouter([
       { path: '/', element: <LibraryPage /> },
       { path: '/item/:id', element: <ItemPage /> },
       { path: '/document/:id', element: <DocumentPage /> },
+      { path: '/analytics', element: <AnalyticsPage /> },
       { path: '/dictionary', element: <DictionaryPage /> },
     ],
   },

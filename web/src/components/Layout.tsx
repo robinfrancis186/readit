@@ -19,6 +19,7 @@ function useTheme(): [Theme, (t: Theme) => void] {
 
 const NAV = [
   { to: '/', label: 'Library', end: true },
+  { to: '/analytics', label: 'Analytics', end: false },
   { to: '/dictionary', label: 'Dictionary', end: false },
 ];
 

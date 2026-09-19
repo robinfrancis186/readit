@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { useReadingActivity } from '../hooks/useReadingActivity';
 import { api, fileUrl } from '../api';
 import { SelectionPopup, type SelectionInfo } from '../components/SelectionPopup';
 import { Toaster } from '../components/Toast';
@@ -10,6 +11,7 @@ import type { ItemDetail, SearchHit } from '../types';
 export function ReaderPage() {
   const { id } = useParams();
   const itemId = Number(id);
+  const analytics = useReadingActivity(itemId);
   const [params] = useSearchParams();
 
   const [error, setError] = useState('');
@@ -64,9 +66,10 @@ export function ReaderPage() {
   }, [itemId]);
 
   const onLocationChange = useCallback((locator: string, progress: number, label: string) => {
+    analytics.opened();
     progressRef.current = { locator, progress };
     setChapter(label);
-  }, []);
+  }, [analytics.opened]);
 
   if (error) return <div className="p-8"><p role="alert">{error}</p><Link to="/" className="btn mt-4">Back to library</Link></div>;
   if (!detail) {
@@ -93,6 +96,7 @@ export function ReaderPage() {
           </Link>
           <div className="min-w-0 flex-1 sm:flex-initial sm:max-w-md">
             <p className="truncate font-medium">{item.title}</p>
+            <Link to="/analytics" className="text-xs text-soft underline">{analytics.status}</Link>
             {chapter && <p className="truncate text-xs text-soft">{chapter}</p>}
           </div>
         </div>
@@ -171,6 +175,7 @@ export function ReaderPage() {
         <div className={`flex-1 min-w-0 ${panel !== 'none' ? 'hidden sm:block' : ''}`}>
           {item.file_format === 'epub' ? (
             <EpubReader
+            onActivity={analytics.activity}
               url={fileUrl(item.id)}
               fontScale={fontScale}
               initialLocation={initialLocation}

@@ -85,6 +85,17 @@ function qs(params: Record<string, unknown>): string {
 }
 
 export const api = {
+  analyticsSettings: () => request<{ enabled: boolean }>('/api/analytics/settings'),
+  setAnalytics: (enabled: boolean) => request<{ enabled: boolean }>('/api/analytics/settings', { method: 'PUT', body: JSON.stringify({ enabled }) }),
+  analytics: (today: string, days: string) => request<{
+    enabled: boolean; streak: number;
+    daily: { day: string; seconds: number }[];
+    books: { id: number; title: string; reading_progress: number; seconds: number; days: number }[];
+    notes: { words: number; excerpts: number };
+  }>(`/api/analytics${qs({ today, days })}`),
+  readingSession: (session: { id: string; itemId: number; day: string; seconds: number }) =>
+    request<{ enabled: boolean }>('/api/analytics/session', { method: 'POST', body: JSON.stringify(session), keepalive: true }),
+
   listItems: (query: LibraryQuery = {}) =>
     request<{ items: Item[]; total: number; limit: number; offset: number }>(
       `/api/library${qs(query as Record<string, unknown>)}`,

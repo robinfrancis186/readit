@@ -15,6 +15,7 @@ interface Props {
   onSelect: (info: SelectionInfo | null) => void;
   onLocationChange?: (locator: string, progress: number, label: string) => void;
   onToc?: (toc: TocEntry[]) => void;
+  onActivity?: () => void;
   /** Bumped by the parent to jump somewhere; see ReaderPage. */
   gotoTarget?: string | null;
 }
@@ -38,6 +39,7 @@ export function EpubReader({
   onLocationChange,
   onToc,
   gotoTarget,
+  onActivity,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const bookRef = useRef<Book | null>(null);
@@ -47,6 +49,8 @@ export function EpubReader({
   const chapterRef = useRef<string>('');
 
   // Keep the newest callbacks without re-creating the rendition each render.
+  const activityRef = useRef(onActivity);
+  activityRef.current = onActivity;
   const onSelectRef = useRef(onSelect);
   const onLocationChangeRef = useRef(onLocationChange);
   onSelectRef.current = onSelect;
@@ -140,6 +144,9 @@ export function EpubReader({
     // Clicking outside a selection dismisses the popup.
     rendition.on('markClicked', () => onSelectRef.current(null));
     rendition.hooks.content.register((contents: { document: Document }) => {
+      for (const event of ['pointerdown', 'keydown', 'scroll', 'wheel', 'touchstart']) {
+        contents.document.addEventListener(event, () => activityRef.current?.(), { passive: true });
+      }
       contents.document.addEventListener('mousedown', () => onSelectRef.current(null));
     });
 

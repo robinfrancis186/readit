@@ -19,7 +19,8 @@
     "test:e2e": "node e2e/smoke.mjs && node e2e/periodical.mjs && node e2e/pwa.mjs",
     "build:dictionaries": "npm run build:dictionaries --workspace server",
     "start:built": "npm run start --workspace server",
-    "test:e2e:sample": "node e2e/library.mjs"
+    "test:e2e:sample": "node e2e/library.mjs",
+    "test:e2e:analytics": "node e2e/analytics.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

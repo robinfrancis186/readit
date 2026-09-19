@@ -199,6 +199,15 @@ CREATE TRIGGER IF NOT EXISTS dict_ad AFTER DELETE ON dict_entries BEGIN
   INSERT INTO dict_fts(dict_fts, rowid, headword, definition) VALUES ('delete', old.id, old.headword, old.definition);
 END;
 
+CREATE TABLE IF NOT EXISTS reading_sessions (
+  id TEXT PRIMARY KEY,
+  item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  day TEXT NOT NULL,
+  seconds INTEGER NOT NULL DEFAULT 0,
+  started_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_reading_sessions_day ON reading_sessions(day);
+
 CREATE TABLE IF NOT EXISTS auth_attempts (
   ip TEXT PRIMARY KEY,
   count INTEGER NOT NULL,
