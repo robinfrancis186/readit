@@ -15,3 +15,13 @@ e2e-shots/
 .env
 .env.local
 *.tsbuildinfo
+.vercel
+.env*.local
+graphify-out/
+.graphify_cache/
+.vercel-dictionary/
+server/data/dictionary.db*
+output/
+.env.*
+
+.playwright-cli/

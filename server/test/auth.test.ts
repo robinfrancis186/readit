@@ -106,3 +106,12 @@ describe('authentication', () => {
     assert.match(String(res.headers['set-cookie']), /Max-Age=0/);
   });
 });
+
+it('rejects malformed cookies without a server error', async () => {
+  const res = await app.inject({ url: '/api/library', headers: { cookie: 'readit_session=%ZZ' } });
+  assert.equal(res.statusCode, 401);
+});
+it('rejects cross-origin writes', async () => {
+  const res = await app.inject({ method: 'POST', url: '/api/auth/login', headers: { origin: 'https://untrusted.example' }, payload: { password: 'correct horse battery staple' } });
+  assert.equal(res.statusCode, 403);
+});

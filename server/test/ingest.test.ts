@@ -186,11 +186,11 @@ describe('document paging', () => {
     return { itemId, excerpt: Number(ids.lastInsertRowid), vocab: Number(vocab.lastInsertRowid) };
   }
 
-  it('groups newspaper excerpts by issue date, one page per issue', () => {
+  it('groups newspaper excerpts by issue date, one page per issue', async () => {
     const { excerpt } = makeItem('newspaper', 'Daily Chronicle');
-    const mar4 = resolvePage(excerpt, { issueDate: '2026-03-04' });
-    const mar4again = resolvePage(excerpt, { issueDate: '2026-03-04' });
-    const mar5 = resolvePage(excerpt, { issueDate: '2026-03-05' });
+    const mar4 = await resolvePage(excerpt, { issueDate: '2026-03-04' });
+    const mar4again = await resolvePage(excerpt, { issueDate: '2026-03-04' });
+    const mar5 = await resolvePage(excerpt, { issueDate: '2026-03-05' });
 
     assert.equal(mar4, mar4again, 'same issue must reuse its page');
     assert.notEqual(mar4, mar5, 'a new issue starts a new page');
@@ -204,24 +204,24 @@ describe('document paging', () => {
     ]);
   });
 
-  it('fills book excerpt pages in order and turns over when full', () => {
+  it('fills book excerpt pages in order and turns over when full', async () => {
     const { excerpt } = makeItem('book', 'Some Book');
-    const first = resolvePage(excerpt);
+    const first = await resolvePage(excerpt);
     const insert = db.prepare(
       "INSERT INTO entries (document_id, page_id, kind, content_text) VALUES (?, ?, 'excerpt', 'x')",
     );
     for (let i = 0; i < PAGE_CAPACITY; i++) insert.run(excerpt, first);
 
-    const second = resolvePage(excerpt);
+    const second = await resolvePage(excerpt);
     assert.notEqual(second, first, 'page should turn over once full');
-    assert.equal(resolvePage(excerpt), second, 'and then keep filling the new page');
+    assert.equal(await resolvePage(excerpt), second, 'and then keep filling the new page');
   });
 
-  it('groups word lists by reading date regardless of item kind', () => {
+  it('groups word lists by reading date regardless of item kind', async () => {
     const { vocab } = makeItem('book', 'Another Book');
-    const day1 = resolvePage(vocab, { readingDate: '2026-01-10' });
-    const day1again = resolvePage(vocab, { readingDate: '2026-01-10' });
-    const day2 = resolvePage(vocab, { readingDate: '2026-01-11' });
+    const day1 = await resolvePage(vocab, { readingDate: '2026-01-10' });
+    const day1again = await resolvePage(vocab, { readingDate: '2026-01-10' });
+    const day2 = await resolvePage(vocab, { readingDate: '2026-01-11' });
 
     assert.equal(day1, day1again);
     assert.notEqual(day1, day2);

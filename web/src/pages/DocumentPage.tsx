@@ -8,6 +8,7 @@ export function DocumentPage() {
   const { id } = useParams();
   const docId = Number(id);
 
+  const [error, setError] = useState('');
   const [data, setData] = useState<DocumentPayload | null>(null);
   const [q, setQ] = useState('');
   const [from, setFrom] = useState('');
@@ -26,7 +27,7 @@ export function DocumentPage() {
     try {
       setData(await api.document(docId, query));
     } catch (err) {
-      toast((err as Error).message, 'error');
+      setError((err as Error).message);
     }
   }, [docId, query]);
 
@@ -41,6 +42,7 @@ export function DocumentPage() {
       .filter((group) => group.entries.length > 0 || !data.filtered);
   }, [data]);
 
+  if (error) return <div role="alert">{error} <Link className="btn" to="/">Back to library</Link></div>;
   if (!data) return <p className="text-soft">Loading…</p>;
 
   const { document: doc, item } = data;
@@ -261,8 +263,9 @@ function ExcerptEntry({ entry, itemId, onChanged }: { entry: Entry; itemId?: num
         suppressContentEditableWarning
         onBlur={saveBody}
         className={`prose-reader whitespace-pre-wrap ${entry.lang === 'ml' ? 'ml' : ''}`}
-        dangerouslySetInnerHTML={{ __html: entry.content_html }}
-      />
+        role="textbox"
+        aria-label="Edit excerpt"
+      >{entry.content_text}</div>
       {showNote && (
         <textarea
           className="field text-sm"
@@ -368,7 +371,7 @@ function EntryFooter({
     <footer className="flex flex-wrap items-center gap-3 text-xs text-soft pt-1">
       {itemId && entry.source_locator ? (
         <Link
-          to={`/read/${itemId}?section=${encodeURIComponent(entry.source_locator)}`}
+          to={`/read/${itemId}?location=${encodeURIComponent(entry.source_locator)}`}
           className="hover:text-accent underline underline-offset-2"
           title="Open this passage in the reader"
         >

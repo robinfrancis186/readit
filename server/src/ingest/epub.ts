@@ -37,6 +37,11 @@ export interface EpubParseResult {
 
 export function parseEpub(buffer: Buffer): EpubParseResult {
   const zip = new AdmZip(buffer);
+  const entries = zip.getEntries();
+  if (entries.length > 10000 || entries.some((entry) => entry.header.size > 32 * 1024 * 1024) ||
+      entries.reduce((total, entry) => total + entry.header.size, 0) > 256 * 1024 * 1024) {
+    throw new Error('This EPUB expands beyond the supported size (32 MiB per entry, 256 MiB total).');
+  }
   const read = (path: string): Buffer | null => zip.getEntry(path)?.getData() ?? null;
 
   // 1. container.xml points at the OPF package document.

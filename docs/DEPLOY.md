@@ -1,5 +1,35 @@
 # Putting Readit online
 
+## Vercel with durable cloud storage
+
+The app now supports a full Vercel deployment using Turso and private Vercel Blob.
+
+1. Link the repository: `vercel link`.
+2. Connect the Turso integration to the project (Starter is a free plan). Choose the
+   Mumbai region to match `vercel.json`. It sets `TURSO_DATABASE_URL` and
+   `TURSO_AUTH_TOKEN`.
+3. Create a **private** Blob store and connect it to production. Set
+   `BLOB_READ_WRITE_TOKEN` (the browser never receives this server token).
+4. Set `READIT_PASSWORD` to a strong passphrase and `READIT_SESSION_SECRET` to
+   at least 32 random bytes. Use the same secret across deployments; changing the
+   password or secret invalidates existing sessions.
+5. Set `READIT_MAX_UPLOAD=134217728` (128 MiB), then `vercel --prod`.
+
+The build generates `server/data/dictionary.db` from the bundled corpora; the
+function opens that artifact read-only. User data lives in Turso/Blob, never in
+Vercel temporary storage. Keep preview/test storage separate from production.
+Production credentials are deliberately not connected to preview deployments.
+
+The library database schema initializes on startup. Local `npm start` still uses
+local SQLite/files unless cloud credentials are explicitly passed. No existing
+local books are automatically uploaded. Back up Turso and Blob separately in
+cloud mode; `data/` is only the backup source for local mode.
+
+See [STATUS.md](STATUS.md) for current capabilities and limits.
+
+---
+
+
 **You probably do not need any of this.** Readit runs on your own computer for
 free — `npm start`, and `npm start -- --lan` to read on a phone that shares your
 Wi-Fi. Hosting solves one problem only: reaching the same library from a device

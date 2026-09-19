@@ -66,12 +66,12 @@ export function UploadDialog({ onClose, onDone }: { onClose: () => void; onDone:
       role="dialog"
       aria-modal="true"
       aria-label="Add to library"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      onClick={(e) => !busy && e.target === e.currentTarget && onClose()}
     >
       <div className="card w-full max-w-xl p-5 flex flex-col gap-4 my-auto">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-medium">Add to library</h2>
-          <button type="button" className="btn px-2 py-0.5" onClick={onClose} aria-label="Close">
+          <button type="button" className="btn px-2 py-0.5" onClick={onClose} disabled={busy} aria-label="Close">
             ✕
           </button>
         </div>
@@ -87,6 +87,10 @@ export function UploadDialog({ onClose, onDone }: { onClose: () => void; onDone:
             setDragging(false);
             accept(e.dataTransfer.files);
           }}
+          role="button"
+          tabIndex={0}
+          aria-label="Choose EPUB or PDF files"
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputRef.current?.click(); } }}
           onClick={() => inputRef.current?.click()}
           className={`rounded-xl border-2 border-dashed p-6 text-center cursor-pointer transition-colors ${
             dragging ? 'border-[var(--accent)] bg-accent-soft' : 'border-rule hover:border-[var(--accent)]'

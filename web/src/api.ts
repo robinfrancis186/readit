@@ -94,16 +94,38 @@ export const api = {
 
   item: (id: number) => request<ItemDetail>(`/api/library/${id}`),
 
-  updateItem: (id: number, patch: Record<string, unknown>) =>
-    request<{ item: Item }>(`/api/library/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  updateItem: (id: number, patch: Record<string, unknown>, keepalive = false) =>
+    request<{ item: Item }>(`/api/library/${id}`, { method: 'PATCH', body: JSON.stringify(patch), keepalive }),
 
   deleteItem: (id: number) => request<{ ok: true }>(`/api/library/${id}`, { method: 'DELETE' }),
 
-  upload: (form: FormData) =>
-    request<{ results: Array<{ itemId?: number; title?: string; duplicate?: boolean; error?: string; filename?: string }> }>(
-      '/api/library/upload',
-      { method: 'POST', body: form },
-    ),
+  upload: async (form: FormData) => {
+    type Result = { itemId?: number; title?: string; duplicate?: boolean; error?: string; filename?: string };
+    const config = await request<{ cloud: boolean; maxUploadBytes: number }>('/api/library/storage');
+    const files = form.getAll('files') as File[];
+    if (files.some((file) => file.size > config.maxUploadBytes)) {
+      throw new Error(`Files must be under ${Math.floor(config.maxUploadBytes / 1024 / 1024)} MB.`);
+    }
+    if (!config.cloud) return request<{ results: Result[] }>('/api/library/upload', { method: 'POST', body: form });
+    const { upload } = await import('@vercel/blob/client');
+    const overrides = Object.fromEntries([...form.entries()].filter(([key]) => key !== 'files')) as Record<string, unknown>;
+    if (typeof overrides.genres === 'string') overrides.genres = overrides.genres.split(',').map((s) => s.trim()).filter(Boolean);
+    const results: Result[] = [];
+    for (const file of files) {
+      try {
+        const ext = file.name.split('.').pop()!.toLowerCase();
+        const blob = await upload(`uploads/${crypto.randomUUID()}.${ext}`, file, {
+          access: 'private', handleUploadUrl: '/api/library/upload-token', multipart: true,
+          contentType: ext === 'pdf' ? 'application/pdf' : 'application/epub+zip',
+        });
+        const imported = await request<{ results: Result[] }>('/api/library/import', {
+          method: 'POST', body: JSON.stringify({ pathname: blob.pathname, filename: file.name, overrides }),
+        });
+        results.push(...imported.results);
+      } catch (error) { results.push({ filename: file.name, error: (error as Error).message }); }
+    }
+    return { results };
+  },
 
   searchInside: (id: number, q: string) =>
     request<{ hits: SearchHit[] }>(`/api/library/${id}/search${qs({ q })}`),

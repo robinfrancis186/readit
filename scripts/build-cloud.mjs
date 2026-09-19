@@ -1,0 +1,18 @@
+import { resolve } from 'node:path';
+import { mkdirSync, rmSync, copyFileSync } from 'node:fs';
+process.env.READIT_DATA_DIR = resolve('.vercel-dictionary');
+delete process.env.READIT_DICTIONARY_DB;
+mkdirSync(process.env.READIT_DATA_DIR, { recursive: true });
+rmSync(resolve(process.env.READIT_DATA_DIR, 'readit.db'), { force: true });
+const { db } = await import('../server/dist/db.js');
+const { loadBundledDictionaries } = await import('../server/dist/dictionary/bundled.js');
+const { renormaliseIfNeeded } = await import('../server/dist/dictionary/index.js');
+const { seedMalayalamIfEmpty } = await import('../server/dist/dictionary/seed-ml.js');
+renormaliseIfNeeded();
+await loadBundledDictionaries(console.log);
+seedMalayalamIfEmpty();
+db.pragma('wal_checkpoint(TRUNCATE)');
+db.pragma('journal_mode = DELETE');
+db.exec('VACUUM');
+db.close();
+copyFileSync(resolve(process.env.READIT_DATA_DIR, 'readit.db'), resolve('server/data/dictionary.db'));

@@ -14,6 +14,10 @@ import { BASE, openBrowser, makeStep, finish, waitForLookup } from './helpers.mj
 const PDF = process.env.READIT_SAMPLE_PDF ?? new URL('./fixtures/kerala-chronicle-2026-03-04.pdf', import.meta.url).pathname;
 
 const { browser, page: p, errors } = await openBrowser();
+if (process.env.READIT_PASSWORD) {
+  const login = await p.request.post(`${BASE}/api/auth/login`, { data: { password: process.env.READIT_PASSWORD } });
+  if (!login.ok()) throw new Error(`Sign-in failed (${login.status()})`);
+}
 const { step } = makeStep();
 
 await step('upload as a newspaper with an issue date', async()=>{

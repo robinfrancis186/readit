@@ -1,0 +1,23 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "npm run build && node scripts/build-cloud.mjs",
+  "outputDirectory": "web/dist",
+  "installCommand": "npm ci",
+  "regions": ["bom1"],
+  "functions": {
+    "api/index.ts": {
+      "maxDuration": 300,
+      "includeFiles": "{server/data/dictionary.db,node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs}",
+      "excludeFiles": "{graphify-out/**,site/**,e2e/**,server/test/**,server/data/dictionaries/**}"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api" },
+    { "source": "/((?!api/|assets/|icons/|sw\\.js$|manifest\\.webmanifest$).*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    { "source": "/sw.js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
+    { "source": "/(.*)", "headers": [{ "key": "X-Content-Type-Options", "value": "nosniff" }, { "key": "Referrer-Policy", "value": "same-origin" }] }
+  ]
+}

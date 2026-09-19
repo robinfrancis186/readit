@@ -14,7 +14,7 @@ function fromEnv(name: string, fallback: string): string {
 }
 
 /** Everything the user owns lives here: the SQLite db, uploads, covers. */
-export const DATA_DIR = fromEnv('READIT_DATA_DIR', join(ROOT, 'data'));
+export const DATA_DIR = fromEnv('READIT_DATA_DIR', process.env.VERCEL ? '/tmp/readit' : join(ROOT, 'data'));
 export const LIBRARY_DIR = join(DATA_DIR, 'library');
 export const COVER_DIR = join(DATA_DIR, 'covers');
 

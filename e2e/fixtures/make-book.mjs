@@ -1,0 +1,11 @@
+import AdmZip from 'adm-zip';
+import { fileURLToPath } from 'node:url';
+const zip = new AdmZip();
+zip.addFile('mimetype', Buffer.from('application/epub+zip'));
+zip.addFile('META-INF/container.xml', Buffer.from('<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>'));
+zip.addFile('OEBPS/content.opf', Buffer.from(`<?xml version="1.0"?><package version="2.0" xmlns="http://www.idpf.org/2007/opf" unique-identifier="id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="id">readit-original-test</dc:identifier><dc:title>The Reading Garden</dc:title><dc:creator>Readit Test Author</dc:creator><dc:language>en</dc:language><dc:publisher>Readit</dc:publisher></metadata><manifest><item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/><item id="one" href="one.xhtml" media-type="application/xhtml+xml"/><item id="two" href="two.xhtml" media-type="application/xhtml+xml"/></manifest><spine toc="ncx"><itemref idref="one"/><itemref idref="two"/></spine></package>`));
+zip.addFile('OEBPS/toc.ncx', Buffer.from(`<?xml version="1.0"?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head><meta name="dtb:uid" content="readit-original-test"/></head><docTitle><text>The Reading Garden</text></docTitle><navMap><navPoint id="one" playOrder="1"><navLabel><text>A Quiet Morning</text></navLabel><content src="one.xhtml"/></navPoint><navPoint id="two" playOrder="2"><navLabel><text>The Open Library</text></navLabel><content src="two.xhtml"/></navPoint></navMap></ncx>`));
+for (const [file, title, sentence] of [['one','A Quiet Morning','The garden offers peace. A book can open a world of knowledge.'],['two','The Open Library','Discovery begins with curiosity. The library keeps every memory alive.']]) {
+  zip.addFile(`OEBPS/${file}.xhtml`, Buffer.from(`<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>${title}</title></head><body><h1>${title}</h1>${Array.from({length:20},()=>`<p>${sentence}</p>`).join('')}</body></html>`));
+}
+zip.writeZip(fileURLToPath(new URL('./reading-garden.epub', import.meta.url)));

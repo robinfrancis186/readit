@@ -37,6 +37,9 @@ export function PdfReader({
 
   useEffect(() => {
     let cancelled = false;
+    let destroy: (() => void) | undefined;
+    setError(null);
+    setLoading(true);
     const container = containerRef.current;
     if (!container) return;
 
@@ -50,7 +53,9 @@ export function PdfReader({
 
       let doc;
       try {
-        doc = await pdfjs.getDocument({ url, isEvalSupported: false }).promise;
+        const task = pdfjs.getDocument({ url, isEvalSupported: false });
+        destroy = () => { void task.destroy(); };
+        doc = await task.promise;
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Could not open this PDF.');
         return;
@@ -110,10 +115,13 @@ export function PdfReader({
         const target = pageRefs.current.get(initialPage);
         if (target && initialPage > 1) target.scrollIntoView();
       }
-    })();
+    })().catch((err: unknown) => {
+      if (!cancelled) { setError(err instanceof Error ? err.message : 'Could not render this PDF.'); setLoading(false); }
+    });
 
     return () => {
       cancelled = true;
+      destroy?.();
     };
     // Re-rendering every page is costly, so only the file or zoom triggers it.
   }, [url, fontScale, initialPage, onPageCount]);
@@ -133,6 +141,7 @@ export function PdfReader({
       }
     };
     scroller.addEventListener('scroll', onScroll, { passive: true });
+    if (!loading) onScroll();
     return () => scroller.removeEventListener('scroll', onScroll);
   }, [loading]);
 
@@ -140,7 +149,7 @@ export function PdfReader({
     if (!gotoTarget) return;
     const target = pageRefs.current.get(Number(gotoTarget));
     target?.scrollIntoView({ behavior: 'smooth' });
-  }, [gotoTarget]);
+  }, [gotoTarget, loading]);
 
   // Selection lives in the normal DOM here, so a document-level listener works.
   useEffect(() => {

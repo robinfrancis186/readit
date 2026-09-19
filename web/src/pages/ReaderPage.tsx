@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { api, fileUrl } from '../api';
 import { SelectionPopup, type SelectionInfo } from '../components/SelectionPopup';
-import { Toaster, toast } from '../components/Toast';
+import { Toaster } from '../components/Toast';
 import { EpubReader, type TocEntry } from '../reader/EpubReader';
 import { PdfReader } from '../reader/PdfReader';
 import type { ItemDetail, SearchHit } from '../types';
@@ -12,6 +12,7 @@ export function ReaderPage() {
   const itemId = Number(id);
   const [params] = useSearchParams();
 
+  const [error, setError] = useState('');
   const [detail, setDetail] = useState<ItemDetail | null>(null);
   const [selection, setSelection] = useState<SelectionInfo | null>(null);
   const [fontScale, setFontScale] = useState(() => Number(localStorage.getItem('readit-font') ?? 1));
@@ -24,30 +25,39 @@ export function ReaderPage() {
   const progressRef = useRef({ locator: '', progress: 0 });
 
   useEffect(() => {
+    let active = true;
+    setDetail(null);
+    setError('');
+    progressRef.current = { locator: '', progress: 0 };
     api
       .item(itemId)
       .then((d) => {
+        if (!active) return;
         setDetail(d);
         setCounts(d.entryCounts);
       })
-      .catch((err) => toast((err as Error).message, 'error'));
+      .catch((err) => { if (active) setError((err as Error).message); });
+    return () => { active = false; };
   }, [itemId]);
 
   useEffect(() => {
     localStorage.setItem('readit-font', String(fontScale));
   }, [fontScale]);
 
-  // Persist the reading position when leaving, rather than on every page turn.
+  // Save while reading and when the tab is hidden; keepalive survives navigation.
   useEffect(() => {
     const save = () => {
       const { locator, progress } = progressRef.current;
       if (!locator) return;
-      void api
-        .updateItem(itemId, { reading_locator: locator, reading_progress: progress })
-        .catch(() => {});
+      void api.updateItem(itemId, { reading_locator: locator, reading_progress: progress }, true).catch(() => {});
     };
+    const timer = setInterval(save, 5000);
+    const onHidden = () => { if (document.hidden) save(); };
+    document.addEventListener('visibilitychange', onHidden);
     window.addEventListener('pagehide', save);
     return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onHidden);
       window.removeEventListener('pagehide', save);
       save();
     };
@@ -58,6 +68,7 @@ export function ReaderPage() {
     setChapter(label);
   }, []);
 
+  if (error) return <div className="p-8"><p role="alert">{error}</p><Link to="/" className="btn mt-4">Back to library</Link></div>;
   if (!detail) {
     return <p className="p-8 text-soft">Opening…</p>;
   }
@@ -66,6 +77,9 @@ export function ReaderPage() {
   const excerptDoc = documents.find((d) => d.kind === 'excerpt');
   const vocabDoc = documents.find((d) => d.kind === 'vocab');
   const sectionParam = params.get('section');
+  const initialLocation = params.get('location') ?? (sectionParam !== null
+    ? item.file_format === 'pdf' ? String(Number(sectionParam) + 1) : detail.sections.find((s) => s.section_index === Number(sectionParam))?.section_href
+    : item.reading_locator);
 
   return (
     <div className="h-full flex flex-col bg-paper">
@@ -137,15 +151,16 @@ export function ReaderPage() {
         {panel !== 'none' && (
           <aside className="w-full sm:w-72 shrink-0 border-r border-rule overflow-y-auto p-3">
             {panel === 'toc' ? (
-              <TocPanel toc={toc} onGo={(href) => setGotoTarget(href)} />
+              <TocPanel toc={toc} onGo={(href) => { setGotoTarget(href); setPanel('none'); }} />
             ) : (
               <SearchPanel
                 itemId={itemId}
                 initial={params.get('q') ?? ''}
                 isMalayalam={item.language === 'ml'}
-                onGo={(hit) =>
-                  setGotoTarget(item.file_format === 'pdf' ? String(hit.section_index + 1) : hit.section_href)
-                }
+                onGo={(hit) => {
+                  setGotoTarget(item.file_format === 'pdf' ? String(hit.section_index + 1) : hit.section_href);
+                  setPanel('none');
+                }}
               />
             )}
           </aside>
@@ -158,7 +173,7 @@ export function ReaderPage() {
             <EpubReader
               url={fileUrl(item.id)}
               fontScale={fontScale}
-              initialLocation={sectionParam ? undefined : item.reading_locator}
+              initialLocation={initialLocation}
               onSelect={setSelection}
               onLocationChange={onLocationChange}
               onToc={setToc}
@@ -168,7 +183,7 @@ export function ReaderPage() {
             <PdfReader
               url={fileUrl(item.id)}
               fontScale={fontScale}
-              initialPage={Number(sectionParam ?? item.reading_locator ?? 1) || 1}
+              initialPage={Number(initialLocation ?? 1) || 1}
               onSelect={setSelection}
               onLocationChange={onLocationChange}
               gotoTarget={gotoTarget}

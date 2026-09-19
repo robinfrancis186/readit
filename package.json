@@ -16,15 +16,22 @@
     "typecheck": "npm run typecheck --workspace server && npm run typecheck --workspace web",
     "test": "npm run test --workspace server",
     "import:stv": "npm run import:stv --workspace server",
-    "test:e2e": "node e2e/library.mjs && node e2e/periodical.mjs && node e2e/pwa.mjs",
+    "test:e2e": "node e2e/smoke.mjs && node e2e/periodical.mjs && node e2e/pwa.mjs",
     "build:dictionaries": "npm run build:dictionaries --workspace server",
-    "start:built": "npm run start --workspace server"
+    "start:built": "npm run start --workspace server",
+    "test:e2e:sample": "node e2e/library.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
     "playwright": "^1.62.1"
   },
   "engines": {
-    "node": ">=20"
+    "node": "22.x"
+  },
+  "overrides": {
+    "@xmldom/xmldom": "0.9.12"
+  },
+  "dependencies": {
+    "epubjs": "0.3.93"
   }
 }

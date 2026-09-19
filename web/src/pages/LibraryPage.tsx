@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, coverUrl, type LibraryQuery } from '../api';
-import { Toaster, toast } from '../components/Toast';
+import { Toaster } from '../components/Toast';
 import { UploadDialog } from '../components/UploadDialog';
 import { KIND_LABELS, languageName, type Facets, type Item, type ItemKind } from '../types';
 
@@ -14,12 +14,16 @@ const SORTS = [
 ];
 
 const EMPTY: LibraryQuery = { sort: 'recent' };
+const PAGE_SIZE = 60;
 
 export function LibraryPage() {
   const [query, setQuery] = useState<LibraryQuery>(EMPTY);
   const [text, setText] = useState('');
   const [items, setItems] = useState<Item[]>([]);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
+  const requestId = useRef(0);
+  const [error, setError] = useState('');
   const [facets, setFacets] = useState<Facets | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -27,30 +31,36 @@ export function LibraryPage() {
 
   // Debounce the free-text box so typing doesn't hammer the API.
   useEffect(() => {
-    const t = setTimeout(() => setQuery((q) => ({ ...q, q: text || undefined })), 220);
+    const t = setTimeout(() => { setPage(0); setQuery((q) => ({ ...q, q: text || undefined })); }, 220);
     return () => clearTimeout(t);
   }, [text]);
 
   const refresh = useCallback(async () => {
+    const current = ++requestId.current;
     setLoading(true);
+    setError('');
     try {
-      const [list, f] = await Promise.all([api.listItems(query), api.facets()]);
+      const [list, f] = await Promise.all([api.listItems({ ...query, limit: PAGE_SIZE, offset: page * PAGE_SIZE }), api.facets()]);
+      if (current !== requestId.current) return;
       setItems(list.items);
       setTotal(list.total);
       setFacets(f);
     } catch (err) {
-      toast((err as Error).message, 'error');
+      if (current === requestId.current) setError((err as Error).message);
     } finally {
-      setLoading(false);
+      if (current === requestId.current) setLoading(false);
     }
-  }, [query]);
+  }, [query, page]);
 
   useEffect(() => {
     void refresh();
+    return () => { requestId.current++; };
   }, [refresh]);
 
+  const updateQuery: typeof setQuery = (next) => { setPage(0); setQuery(next); };
+
   const setFacet = (key: keyof LibraryQuery, value: string | undefined) =>
-    setQuery((q) => ({ ...q, [key]: q[key] === value ? undefined : value }));
+    updateQuery((q) => ({ ...q, [key]: q[key] === value ? undefined : value }));
 
   const activeFilters = useMemo(
     () =>
@@ -79,7 +89,7 @@ export function LibraryPage() {
         <select
           className="field w-auto"
           value={query.sort ?? 'recent'}
-          onChange={(e) => setQuery((q) => ({ ...q, sort: e.target.value }))}
+          onChange={(e) => updateQuery((q) => ({ ...q, sort: e.target.value }))}
           aria-label="Sort order"
         >
           {SORTS.map((s) => (
@@ -115,7 +125,7 @@ export function LibraryPage() {
           facets={facets}
           query={query}
           setFacet={setFacet}
-          setQuery={setQuery}
+          setQuery={updateQuery}
           open={showFilters}
         />
 
@@ -134,12 +144,12 @@ export function LibraryPage() {
                 {f.value} ✕
               </button>
             ))}
-            {(activeFilters.length > 0 || query.yearFrom || query.yearTo) && (
+            {(activeFilters.length > 0 || text || query.yearFrom || query.yearTo || query.dateFrom || query.dateTo) && (
               <button
                 type="button"
                 className="text-accent underline underline-offset-2 text-xs"
                 onClick={() => {
-                  setQuery({ sort: query.sort });
+                  updateQuery({ sort: query.sort });
                   setText('');
                 }}
               >
@@ -148,8 +158,9 @@ export function LibraryPage() {
             )}
           </div>
 
-          {!loading && items.length === 0 ? (
-            <EmptyState onAdd={() => setUploadOpen(true)} filtered={Boolean(text || activeFilters.length)} />
+          {error && <div role="alert" className="card p-4">{error} <button className="btn" onClick={() => void refresh()}>Retry</button></div>}
+          {!error && !loading && items.length === 0 ? (
+            <EmptyState onAdd={() => setUploadOpen(true)} filtered={Boolean(text || activeFilters.length || query.yearFrom || query.yearTo || query.dateFrom || query.dateTo)} />
           ) : (
             <ul className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
               {items.map((item) => (
@@ -157,6 +168,11 @@ export function LibraryPage() {
               ))}
             </ul>
           )}
+          {total > PAGE_SIZE && <nav aria-label="Library pages" className="flex items-center justify-between gap-3">
+            <button className="btn" disabled={loading || page === 0} onClick={() => setPage((p) => p - 1)}>Previous</button>
+            <span className="text-sm text-soft">Page {page + 1} of {Math.ceil(total / PAGE_SIZE)}</span>
+            <button className="btn" disabled={loading || (page + 1) * PAGE_SIZE >= total} onClick={() => setPage((p) => p + 1)}>Next</button>
+          </nav>}
         </section>
       </div>
 

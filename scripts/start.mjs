@@ -51,6 +51,8 @@ const webBuilt = builtAt(join(ROOT, 'web', 'dist', 'index.html'));
 const sourceChanged = Math.max(
   newestFile(join(ROOT, 'server', 'src')),
   newestFile(join(ROOT, 'web', 'src')),
+  newestFile(join(ROOT, 'web', 'public')),
+  ...['package.json', 'package-lock.json', 'web/package.json', 'server/package.json', 'web/vite.config.ts', 'web/index.html'].map((file) => builtAt(join(ROOT, file))),
 );
 
 const stale = !serverBuilt || !webBuilt || sourceChanged > Math.min(serverBuilt, webBuilt);

@@ -1,10 +1,11 @@
+import { escapeHtml } from '../ingest/text.js';
+import { ftsQuery } from '../search.js';
 import type { FastifyInstance } from 'fastify';
-import { createReadStream, existsSync } from 'node:fs';
-import { unlink } from 'node:fs/promises';
-import { join } from 'node:path';
 import { z } from 'zod';
-import { COVER_DIR, LIBRARY_DIR } from '../config.js';
-import { db } from '../db.js';
+import { MAX_UPLOAD_BYTES } from '../config.js';
+import { cloudStorage, readFileStream, removeFile, readUpload } from '../storage.js';
+import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
+import { libraryDb as db } from '../library-db.js';
 import { ensureDocuments, safeParseArray } from '../documents.js';
 import { ingestFile, type IngestOverrides, type ItemKind } from '../ingest/index.js';
 
@@ -23,8 +24,8 @@ const listQuery = z.object({
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
   sort: z.enum(['recent', 'title', 'author', 'year', 'opened']).default('recent'),
-  limit: z.coerce.number().min(1).max(200).default(60),
-  offset: z.coerce.number().min(0).default(0),
+  limit: z.coerce.number().int().min(1).max(200).default(60),
+  offset: z.coerce.number().int().min(0).default(0),
 });
 
 const patchBody = z.object({
@@ -64,17 +65,55 @@ function shape(row: ItemRecord) {
 }
 
 /** Turn user input into an FTS5 prefix query without letting syntax leak through. */
-function ftsQuery(raw: string): string {
-  const tokens = raw
-    .replace(/["*()^:]/g, ' ')
-    .split(/\s+/)
-    .map((t) => t.trim())
-    .filter(Boolean);
-  if (!tokens.length) return '';
-  return tokens.map((t) => `"${t}"*`).join(' AND ');
-}
 
 export async function libraryRoutes(app: FastifyInstance): Promise<void> {
+  app.get('/api/library/storage', async () => ({ cloud: cloudStorage, maxUploadBytes: MAX_UPLOAD_BYTES }));
+  app.post('/api/library/upload-token', async (req, reply) => {
+    if (!cloudStorage) return reply.code(404).send({ error: 'Cloud uploads are not enabled.' });
+    return handleUpload({
+      request: req.raw,
+      body: req.body as HandleUploadBody,
+      onBeforeGenerateToken: async (pathname) => {
+        if (!/^uploads\/[a-f0-9-]{36}\.(epub|pdf)$/.test(pathname)) {
+          throw Object.assign(new Error('Invalid upload path.'), { statusCode: 400 });
+        }
+        return {
+          allowedContentTypes: ['application/pdf', 'application/epub+zip', 'application/octet-stream'],
+          maximumSizeInBytes: MAX_UPLOAD_BYTES,
+          validUntil: Date.now() + 60 * 60 * 1000,
+          addRandomSuffix: true,
+          allowOverwrite: false,
+        };
+      },
+    });
+  });
+  app.post('/api/library/import', async (req, reply) => {
+    if (!cloudStorage) return reply.code(404).send({ error: 'Cloud uploads are not enabled.' });
+    const body = z.object({
+      pathname: z.string().regex(/^uploads\/[a-f0-9-]{36}-[a-zA-Z0-9]+\.(epub|pdf)$/),
+      filename: z.string().min(1).max(255).regex(/\.(epub|pdf)$/i),
+      overrides: z.object({
+        kind: z.enum(KINDS).optional(), title: z.string().max(1000).optional(),
+        language: z.string().max(30).optional(), edition: z.string().max(100).optional(),
+        issueDate: z.string().date().optional(), issueNumber: z.string().max(100).optional(),
+        genres: z.array(z.string().max(100)).max(100).optional(),
+      }).default({}),
+    }).parse(req.body);
+    // Only this store's pathnames are accepted; never fetch a client-supplied URL.
+    const prior = await db.prepare('SELECT id, title FROM items WHERE file_path = ?').get(body.pathname);
+    if (prior) return { results: [{ itemId: prior.id, title: prior.title, duplicate: true }] };
+    try {
+      const result = await ingestFile(body.filename, await readUpload(body.pathname), body.overrides, body.pathname);
+      if (result.duplicate && !await db.prepare('SELECT id FROM items WHERE file_path = ?').get(body.pathname)) {
+        await removeFile('library', body.pathname);
+      }
+      return { results: [result] };
+    } catch (error) {
+      // Retain a staged upload on failure so it can be retried without data loss.
+      throw error;
+    }
+  });
+
   app.post('/api/library/upload', async (req, reply) => {
     const parts = req.parts();
     const overrides: IngestOverrides = {};
@@ -135,17 +174,15 @@ export async function libraryRoutes(app: FastifyInstance): Promise<void> {
     if (q.language) { where.push('i.language = ?'); params.push(q.language); }
     if (q.publisher) { where.push('i.publisher = ?'); params.push(q.publisher); }
     if (q.series) { where.push('i.series = ?'); params.push(q.series); }
-    // authors/genres are JSON arrays; a LIKE on the encoded form is exact enough
-    // because we compare against the quoted element.
-    if (q.author) { where.push('i.authors LIKE ?'); params.push(`%${JSON.stringify(q.author).slice(1, -1)}%`); }
-    if (q.genre) { where.push('i.genres LIKE ?'); params.push(`%${JSON.stringify(q.genre).slice(1, -1)}%`); }
+    if (q.author) { where.push('EXISTS (SELECT 1 FROM json_each(i.authors) WHERE value = ?)'); params.push(q.author); }
+    if (q.genre) { where.push('EXISTS (SELECT 1 FROM json_each(i.genres) WHERE value = ?)'); params.push(q.genre); }
     if (q.yearFrom !== undefined) { where.push('i.year >= ?'); params.push(q.yearFrom); }
     if (q.yearTo !== undefined) { where.push('i.year <= ?'); params.push(q.yearTo); }
     if (q.dateFrom) { where.push('COALESCE(i.issue_date, i.published_date) >= ?'); params.push(q.dateFrom); }
     if (q.dateTo) { where.push('COALESCE(i.issue_date, i.published_date) <= ?'); params.push(q.dateTo); }
 
     const orderBy = {
-      recent: 'i.added_at DESC',
+      recent: 'i.added_at DESC, i.id DESC',
       title: 'i.title COLLATE NOCASE ASC',
       author: 'i.authors COLLATE NOCASE ASC, i.title COLLATE NOCASE ASC',
       year: 'COALESCE(i.issue_date, i.published_date, i.year) DESC',
@@ -153,29 +190,29 @@ export async function libraryRoutes(app: FastifyInstance): Promise<void> {
     }[q.sort];
 
     const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
-    const rows = db
+    const rows = (await db
       .prepare(`SELECT i.* FROM items i ${clause} ORDER BY ${orderBy} LIMIT ? OFFSET ?`)
-      .all(...params, q.limit, q.offset) as ItemRecord[];
-    const total = db
+      .all(...params, q.limit, q.offset)) as ItemRecord[];
+    const total = (await db
       .prepare(`SELECT COUNT(*) AS n FROM items i ${clause}`)
-      .get(...params) as { n: number };
+      .get(...params)) as { n: number };
 
     return { items: rows.map(shape), total: total.n, limit: q.limit, offset: q.offset };
   });
 
   /** Distinct values for every facet, so the sidebar reflects what's actually there. */
   app.get('/api/library/facets', async () => {
-    const scalar = (col: string) =>
-      (db
+    const scalar = async (col: string) =>
+      ((await db
         .prepare(
           `SELECT ${col} AS value, COUNT(*) AS count FROM items
             WHERE ${col} IS NOT NULL AND ${col} <> '' GROUP BY ${col} ORDER BY count DESC, value ASC`,
         )
-        .all() as Array<{ value: string; count: number }>);
+        .all()) as Array<{ value: string; count: number }>);
 
-    const jsonFacet = (col: string) => {
+    const jsonFacet = async (col: string) => {
       const counts = new Map<string, number>();
-      const rows = db.prepare(`SELECT ${col} AS raw FROM items`).all() as Array<{ raw: string }>;
+      const rows = (await db.prepare(`SELECT ${col} AS raw FROM items`).all()) as Array<{ raw: string }>;
       for (const row of rows) {
         for (const v of safeParseArray(row.raw)) counts.set(v, (counts.get(v) ?? 0) + 1);
       }
@@ -184,41 +221,41 @@ export async function libraryRoutes(app: FastifyInstance): Promise<void> {
         .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
     };
 
-    const years = db
+    const years = (await db
       .prepare('SELECT MIN(year) AS min, MAX(year) AS max FROM items WHERE year IS NOT NULL')
-      .get() as { min: number | null; max: number | null };
+      .get()) as { min: number | null; max: number | null };
 
     return {
-      kinds: scalar('kind'),
-      languages: scalar('language'),
-      publishers: scalar('publisher'),
-      series: scalar('series'),
-      authors: jsonFacet('authors'),
-      genres: jsonFacet('genres'),
+      kinds: await scalar('kind'),
+      languages: await scalar('language'),
+      publishers: await scalar('publisher'),
+      series: await scalar('series'),
+      authors: await jsonFacet('authors'),
+      genres: await jsonFacet('genres'),
       years,
     };
   });
 
   app.get('/api/library/:id', async (req, reply) => {
     const id = Number((req.params as { id: string }).id);
-    const row = db.prepare('SELECT * FROM items WHERE id = ?').get(id) as ItemRecord | undefined;
+    const row = (await db.prepare('SELECT * FROM items WHERE id = ?').get(id)) as ItemRecord | undefined;
     if (!row) return reply.code(404).send({ error: 'Not found' });
 
-    const documents = db
+    const documents = (await db
       .prepare('SELECT id, kind, title, created_at, updated_at FROM documents WHERE item_id = ?')
-      .all(id);
-    const sections = db
+      .all(id));
+    const sections = (await db
       .prepare(
         'SELECT id, section_index, section_href, section_title, LENGTH(text) AS length FROM item_text WHERE item_id = ? ORDER BY section_index',
       )
-      .all(id);
-    const counts = db
+      .all(id));
+    const counts = (await db
       .prepare(
         `SELECT d.kind, COUNT(e.id) AS n FROM documents d
            LEFT JOIN entries e ON e.document_id = d.id
           WHERE d.item_id = ? GROUP BY d.kind`,
       )
-      .all(id) as Array<{ kind: string; n: number }>;
+      .all(id)) as Array<{ kind: string; n: number }>;
 
     return {
       item: shape(row),
@@ -231,7 +268,7 @@ export async function libraryRoutes(app: FastifyInstance): Promise<void> {
   app.patch('/api/library/:id', async (req, reply) => {
     const id = Number((req.params as { id: string }).id);
     const body = patchBody.parse(req.body);
-    const exists = db.prepare('SELECT id FROM items WHERE id = ?').get(id);
+    const exists = (await db.prepare('SELECT id FROM items WHERE id = ?').get(id));
     if (!exists) return reply.code(404).send({ error: 'Not found' });
 
     const sets: string[] = [];
@@ -242,64 +279,64 @@ export async function libraryRoutes(app: FastifyInstance): Promise<void> {
       params.push(Array.isArray(value) ? JSON.stringify(value) : value);
     }
     // Keep `year` consistent when only the full date was edited.
-    if (body.published_date && body.year === undefined) {
-      const derived = Number(body.published_date.slice(0, 4));
-      if (Number.isFinite(derived)) { sets.push('year = ?'); params.push(derived); }
+    if (body.published_date !== undefined && body.year === undefined) {
+      const derived = body.published_date ? Number(body.published_date.slice(0, 4)) : null;
+      sets.push('year = ?'); params.push(derived && Number.isFinite(derived) ? derived : null);
     }
     if (sets.length) {
       sets.push("updated_at = datetime('now')");
-      db.prepare(`UPDATE items SET ${sets.join(', ')} WHERE id = ?`).run(...params, id);
+      (await db.prepare(`UPDATE items SET ${sets.join(', ')} WHERE id = ?`).run(...params, id));
       // Document titles embed the item's particulars, so refresh them.
-      ensureDocuments(id);
+      await ensureDocuments(id);
     }
 
-    return { item: shape(db.prepare('SELECT * FROM items WHERE id = ?').get(id) as ItemRecord) };
+    return { item: shape((await db.prepare('SELECT * FROM items WHERE id = ?').get(id)) as ItemRecord) };
   });
 
   app.delete('/api/library/:id', async (req, reply) => {
     const id = Number((req.params as { id: string }).id);
-    const row = db.prepare('SELECT file_path, cover_path FROM items WHERE id = ?').get(id) as
+    const row = (await db.prepare('SELECT file_path, cover_path FROM items WHERE id = ?').get(id)) as
       | { file_path: string; cover_path: string | null }
       | undefined;
     if (!row) return reply.code(404).send({ error: 'Not found' });
 
-    db.prepare('DELETE FROM items WHERE id = ?').run(id);
-    await unlink(join(LIBRARY_DIR, row.file_path)).catch(() => {});
-    if (row.cover_path) await unlink(join(COVER_DIR, row.cover_path)).catch(() => {});
+    (await db.prepare('DELETE FROM items WHERE id = ?').run(id));
+    await removeFile('library', row.file_path).catch((error) => app.log.error(error, 'File cleanup failed'));
+    if (row.cover_path) await removeFile('covers', row.cover_path).catch((error) => app.log.error(error, 'Cover cleanup failed'));
     return { ok: true };
   });
 
   /** The raw EPUB/PDF, streamed to the reader in the browser. */
   app.get('/api/library/:id/file', async (req, reply) => {
     const id = Number((req.params as { id: string }).id);
-    const row = db.prepare('SELECT file_path, file_format FROM items WHERE id = ?').get(id) as
+    const row = (await db.prepare('SELECT file_path, file_format FROM items WHERE id = ?').get(id)) as
       | { file_path: string; file_format: string }
       | undefined;
     if (!row) return reply.code(404).send({ error: 'Not found' });
 
-    const path = join(LIBRARY_DIR, row.file_path);
-    if (!existsSync(path)) return reply.code(410).send({ error: 'File is missing from storage' });
+    const stream = await readFileStream('library', row.file_path);
+    if (!stream) return reply.code(410).send({ error: 'File is missing from storage' });
 
-    db.prepare("UPDATE items SET last_opened_at = datetime('now') WHERE id = ?").run(id);
+    (await db.prepare("UPDATE items SET last_opened_at = datetime('now') WHERE id = ?").run(id));
     return reply
       .type(row.file_format === 'pdf' ? 'application/pdf' : 'application/epub+zip')
       .header('Content-Disposition', `inline; filename="${encodeURIComponent(row.file_path)}"`)
-      .send(createReadStream(path));
+      .send(stream);
   });
 
   app.get('/api/library/:id/cover', async (req, reply) => {
     const id = Number((req.params as { id: string }).id);
-    const row = db.prepare('SELECT cover_path FROM items WHERE id = ?').get(id) as
+    const row = (await db.prepare('SELECT cover_path FROM items WHERE id = ?').get(id)) as
       | { cover_path: string | null }
       | undefined;
     if (!row?.cover_path) return reply.code(404).send({ error: 'No cover' });
-    const path = join(COVER_DIR, row.cover_path);
-    if (!existsSync(path)) return reply.code(404).send({ error: 'No cover' });
+    const stream = await readFileStream('covers', row.cover_path);
+    if (!stream) return reply.code(404).send({ error: 'No cover' });
     const ext = row.cover_path.split('.').pop();
     return reply
       .type(ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg')
-      .header('Cache-Control', 'public, max-age=31536000, immutable')
-      .send(createReadStream(path));
+      .header('Cache-Control', 'private, no-store')
+      .send(stream);
   });
 
   /** Keyword search *inside* one item, returning snippets per section. */
@@ -309,26 +346,26 @@ export async function libraryRoutes(app: FastifyInstance): Promise<void> {
     const match = ftsQuery(q);
     if (!match) return { hits: [] };
 
-    const hits = db
+    const hits = (await db
       .prepare(
         `SELECT t.id, t.section_index, t.section_href, t.section_title,
-                snippet(item_text_fts, 0, '<mark>', '</mark>', '…', 24) AS snippet
+                snippet(item_text_fts, 0, char(1), char(2), '…', 24) AS snippet
            FROM item_text_fts f
            JOIN item_text t ON t.id = f.rowid
           WHERE item_text_fts MATCH ? AND t.item_id = ?
           ORDER BY rank
           LIMIT 60`,
       )
-      .all(match, id);
-    return { hits };
+      .all(match, id));
+    return { hits: hits.map((hit) => ({ ...hit, snippet: escapeHtml(String(hit.snippet)).replace(/\u0001/g, '<mark>').replace(/\u0002/g, '</mark>') })) };
   });
 
   /** Full text of one section — used to show excerpt context. */
   app.get('/api/library/:id/section/:index', async (req, reply) => {
     const { id, index } = req.params as { id: string; index: string };
-    const row = db
+    const row = (await db
       .prepare('SELECT * FROM item_text WHERE item_id = ? AND section_index = ?')
-      .get(Number(id), Number(index));
+      .get(Number(id), Number(index)));
     if (!row) return reply.code(404).send({ error: 'Not found' });
     return row;
   });

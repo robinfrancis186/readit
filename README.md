@@ -5,7 +5,11 @@
 One searchable library for your books, magazines, newspapers and PDFs — with a
 reader that turns any selection into a dictionary lookup or a note.
 
-Readit runs on your own computer. No account, no subscription, no connection
+Readit runs on your own computer or as a private cloud library on Vercel.
+See [cloud deployment](docs/DEPLOY.md#vercel-with-durable-cloud-storage) and
+[application status](docs/STATUS.md).
+
+In local mode, Readit runs on your own computer. No account, no subscription, no connection
 needed. Your books never leave your machine: the library, the notebooks and the
 dictionaries are one SQLite file and one folder that belong to you.
 
@@ -15,7 +19,7 @@ dictionaries are one SQLite file and one folder that belong to you.
 
 ## Run it
 
-Node 20 or newer.
+Node 22 LTS (the supported deployment runtime).
 
 ```bash
 git clone https://github.com/robinfrancis186/readit.git
@@ -159,7 +163,8 @@ under `data/library/`. Back up that one folder and you've backed up everything.
 Probably not. Hosting solves one problem: reaching the *same* library from a
 device that isn't on your network. If that doesn't matter to you, stop here.
 
-If it does, there's a `Dockerfile` and configs for Fly.io and Render;
+For Vercel, use the Turso/private Blob setup in [docs/DEPLOY.md](docs/DEPLOY.md).
+For a host with a persistent disk, there's a `Dockerfile` and configs for Fly.io and Render;
 [docs/DEPLOY.md](docs/DEPLOY.md) walks through it. Set `READIT_PASSWORD` before
 exposing it to anything — Readit has no accounts, so without one anyone who
 reaches the URL can read *and delete* your library.
@@ -187,7 +192,13 @@ npm start                                         # in another terminal
 READIT_SAMPLE_EPUB=/path/to/book.epub npm run test:e2e
 ```
 
-Three end-to-end suites drive a real browser and fail on any console error:
+Three end-to-end suites drive a real browser and fail on any console error.
+The default EPUB smoke test uses the original fixture in `e2e/fixtures/`. The
+optional real-book suite remains available with `npm run test:e2e:sample`.
+For cloud uploads/private access, run `node e2e/cloud.mjs` with `READIT_URL` and
+`READIT_PASSWORD` set.
+
+The default suites cover:
 
 - **Book** — import an EPUB, read it, select text, look a word up, save and edit
   notes, search and export them.
@@ -235,9 +246,8 @@ The data model, in four tables that matter:
 ## Limits
 
 Readit is single-user by design: one library, one optional password, no
-accounts. Sharing the password shares everything, including deletion. On one
-server with SQLite on one disk it suits one reader well, and does not survive
-being scaled out.
+accounts. Sharing the password shares everything, including deletion. Local SQLite/disk mode must run on one server. The Vercel mode uses shared
+Turso/Blob storage across function instances. Both modes expose one shared library.
 
 Not built:
 

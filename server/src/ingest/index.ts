@@ -1,8 +1,7 @@
-import { createHash } from 'node:crypto';
-import { writeFile } from 'node:fs/promises';
-import { extname, join } from 'node:path';
-import { COVER_DIR, LIBRARY_DIR } from '../config.js';
-import { db } from '../db.js';
+import { createHash, randomUUID } from 'node:crypto';
+import { extname } from 'node:path';
+import { storeFile, removeFile } from '../storage.js';
+import { libraryDb as db } from '../library-db.js';
 import { ensureDocuments } from '../documents.js';
 import { parseEpub } from './epub.js';
 import { parsePdf } from './pdf.js';
@@ -79,10 +78,11 @@ export async function ingestFile(
   filename: string,
   buffer: Buffer,
   overrides: IngestOverrides = {},
+  uploadedPath?: string,
 ): Promise<IngestResult> {
   const sha256 = createHash('sha256').update(buffer).digest('hex');
 
-  const existing = db.prepare('SELECT id, title FROM items WHERE sha256 = ?').get(sha256) as
+  const existing = (await db.prepare('SELECT id, title FROM items WHERE sha256 = ?').get(sha256)) as
     | { id: number; title: string }
     | undefined;
   if (existing) {
@@ -121,15 +121,13 @@ export async function ingestFile(
     ? { title: overrides.title, subtitle: overrides.subtitle ?? merged.subtitle }
     : splitSubtitle(merged.title);
 
-  const storedName = `${sha256.slice(0, 12)}-${slug(title)}${ext}`;
-  const storedPath = join(LIBRARY_DIR, storedName);
-  await writeFile(storedPath, buffer);
+  const storedName = `${randomUUID()}-${slug(title)}${ext}`;
+  const storedPath = uploadedPath ?? await storeFile('library', storedName, buffer);
 
   let coverPath: string | null = null;
   if (cover) {
-    const coverName = `${sha256.slice(0, 12)}.${cover.ext}`;
-    await writeFile(join(COVER_DIR, coverName), cover.data);
-    coverPath = coverName;
+    const coverName = `${randomUUID()}.${cover.ext}`;
+    coverPath = await storeFile('covers', coverName, cover.data);
   }
 
   const kind = overrides.kind ?? inferKind(format, merged, filename);
@@ -152,8 +150,10 @@ export async function ingestFile(
   `);
 
   // One transaction: an item is either fully searchable or not in the library.
-  const run = db.transaction(() => {
-    const info = insertItem.run({
+  const run = db.transaction(async () => {
+    const duplicate = await db.prepare('SELECT id, title FROM items WHERE sha256 = ?').get(sha256);
+    if (duplicate) return { itemId: Number(duplicate.id), duplicate: true, title: String(duplicate.title), sections: 0 };
+    const info = (await insertItem.run({
       kind,
       title,
       subtitle: subtitle ?? null,
@@ -178,24 +178,34 @@ export async function ingestFile(
       volume: overrides.volume ?? null,
       description: merged.description ?? null,
       page_count: merged.pageCount ?? (format === 'epub' ? null : sections.length),
-      file_path: storedName,
+      file_path: storedPath,
       file_format: format,
       file_size: buffer.length,
       sha256,
       cover_path: coverPath,
-    });
+    }));
     const itemId = Number(info.lastInsertRowid);
 
     for (const s of sections) {
-      insertText.run(itemId, s.index, s.href ?? null, s.title ?? null, s.text);
+      (await insertText.run(itemId, s.index, s.href ?? null, s.title ?? null, s.text));
     }
 
-    ensureDocuments(itemId);
-    return itemId;
+    await ensureDocuments(itemId);
+    return { itemId, duplicate: false, title, sections: sections.length };
   });
 
-  const itemId = run();
-  return { itemId, duplicate: false, title, sections: sections.length };
+  try {
+    const result = await run();
+    if (result.duplicate) {
+      if (!uploadedPath) await removeFile('library', storedPath);
+      if (coverPath) await removeFile('covers', coverPath);
+    }
+    return result;
+  } catch (error) {
+    if (!uploadedPath) await removeFile('library', storedPath).catch(() => {});
+    if (coverPath) await removeFile('covers', coverPath).catch(() => {});
+    throw error;
+  }
 }
 
 function applyOverrides(base: ExtractedMetadata, o: IngestOverrides): ExtractedMetadata {

@@ -8,6 +8,7 @@ export function ItemPage() {
   const { id } = useParams();
   const itemId = Number(id);
   const navigate = useNavigate();
+  const [error, setError] = useState('');
   const [data, setData] = useState<ItemDetail | null>(null);
   const [editing, setEditing] = useState(false);
   const [insideQuery, setInsideQuery] = useState('');
@@ -17,7 +18,7 @@ export function ItemPage() {
     try {
       setData(await api.item(itemId));
     } catch (err) {
-      toast((err as Error).message, 'error');
+      setError((err as Error).message);
     }
   }, [itemId]);
 
@@ -41,6 +42,7 @@ export function ItemPage() {
     return () => clearTimeout(t);
   }, [insideQuery, itemId]);
 
+  if (error) return <div role="alert">{error} <Link className="btn" to="/">Back to library</Link></div>;
   if (!data) return <p className="text-soft">Loading…</p>;
   const { item, documents, entryCounts } = data;
   const excerptDoc = documents.find((d) => d.kind === 'excerpt');
@@ -164,8 +166,6 @@ export function ItemPage() {
                   </span>
                   <span
                     className={`text-sm leading-relaxed ${item.language === 'ml' ? 'ml' : ''}`}
-                    // Snippets come from SQLite's snippet(), which only ever
-                    // inserts the <mark> tags we asked for.
                     dangerouslySetInnerHTML={{ __html: hit.snippet }}
                   />
                 </Link>

@@ -13,7 +13,7 @@ export function decodeEntities(input: string): string {
       const code = body[1] === 'x' || body[1] === 'X'
         ? parseInt(body.slice(2), 16)
         : parseInt(body.slice(1), 10);
-      return Number.isFinite(code) && code > 0 ? String.fromCodePoint(code) : match;
+      return Number.isFinite(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match;
     }
     return NAMED_ENTITIES[body.toLowerCase()] ?? match;
   });

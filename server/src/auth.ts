@@ -2,6 +2,7 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { db } from './db.js';
+import { libraryDb } from './library-db.js';
 import { READIT_PASSWORD, SESSION_DAYS } from './config.js';
 
 const COOKIE = 'readit_session';
@@ -21,6 +22,7 @@ export const authRequired = (): boolean => READIT_PASSWORD.length > 0;
  * restart or a redeploy. It is not the password and never leaves the server.
  */
 function secret(): Buffer {
+  if (process.env.READIT_SESSION_SECRET) return Buffer.from(process.env.READIT_SESSION_SECRET);
   const row = db.prepare("SELECT value FROM settings WHERE key = 'session_secret'").get() as
     | { value: string }
     | undefined;
@@ -34,7 +36,7 @@ function secret(): Buffer {
 }
 
 function sign(payload: string): string {
-  return createHmac('sha256', secret()).update(payload).digest('base64url');
+  return createHmac('sha256', secret()).update(READIT_PASSWORD).update('\0').update(payload).digest('base64url');
 }
 
 export function issueToken(): string {
@@ -63,7 +65,9 @@ function readCookie(req: FastifyRequest): string | undefined {
   if (!header) return undefined;
   for (const part of header.split(';')) {
     const [name, ...rest] = part.trim().split('=');
-    if (name === COOKIE) return decodeURIComponent(rest.join('='));
+    if (name === COOKIE) {
+      try { return decodeURIComponent(rest.join('=')); } catch { return undefined; }
+    }
   }
   return undefined;
 }
@@ -79,26 +83,18 @@ function passwordMatches(submitted: string): boolean {
  * Crude but sufficient brute-force protection: a few attempts, then a pause.
  * One user, one password — there is no legitimate reason to guess quickly.
  */
-const attempts = new Map<string, { count: number; until: number }>();
 const MAX_ATTEMPTS = 8;
 const LOCKOUT_MS = 60_000;
-
-function throttled(ip: string): boolean {
-  const record = attempts.get(ip);
-  if (!record) return false;
-  if (record.until > Date.now()) return true;
-  if (record.until && record.until <= Date.now()) attempts.delete(ip);
-  return false;
-}
-
-function recordFailure(ip: string): void {
-  const record = attempts.get(ip) ?? { count: 0, until: 0 };
-  record.count++;
-  if (record.count >= MAX_ATTEMPTS) {
-    record.until = Date.now() + LOCKOUT_MS;
-    record.count = 0;
-  }
-  attempts.set(ip, record);
+async function throttled(ip: string): Promise<boolean> {
+  const now = Date.now();
+  const key = createHmac('sha256', secret()).update(ip).digest('hex');
+  await libraryDb.prepare('DELETE FROM auth_attempts WHERE expires <= ?').run(now);
+  const row = await libraryDb.prepare(`
+    INSERT INTO auth_attempts (ip, count, expires) VALUES (?, 1, ?)
+    ON CONFLICT(ip) DO UPDATE SET count = auth_attempts.count + 1
+    RETURNING count
+  `).get(key, now + LOCKOUT_MS);
+  return row.count > MAX_ATTEMPTS;
 }
 
 const loginBody = z.object({ password: z.string().min(1).max(512) });
@@ -117,6 +113,14 @@ const OPEN_PATHS = new Set([
 
 export function registerAuth(app: FastifyInstance): void {
   app.addHook('preHandler', async (req: FastifyRequest, reply: FastifyReply) => {
+    if (process.env.VERCEL && (!authRequired() || !process.env.READIT_SESSION_SECRET)) {
+      return reply.code(503).send({ error: 'Private library access has not been configured.' });
+    }
+    reply.header('Cache-Control', 'private, no-store');
+    const origin = req.headers.origin;
+    if (origin && !['GET', 'HEAD', 'OPTIONS'].includes(req.method) && origin !== `${req.protocol}://${req.host}`) {
+      return reply.code(403).send({ error: 'Cross-origin changes are not allowed.' });
+    }
     if (!authRequired()) return;
     const path = req.url.split('?')[0];
     if (OPEN_PATHS.has(path)) return;
@@ -133,17 +137,16 @@ export function registerAuth(app: FastifyInstance): void {
     if (!authRequired()) return { ok: true, signedIn: true };
 
     const ip = req.ip ?? 'unknown';
-    if (throttled(ip)) {
+    if (await throttled(ip)) {
       return reply.code(429).send({ error: 'Too many attempts. Wait a minute and try again.' });
     }
 
     const { password } = loginBody.parse(req.body);
     if (!passwordMatches(password)) {
-      recordFailure(ip);
       return reply.code(401).send({ error: 'Wrong password.' });
     }
 
-    attempts.delete(ip);
+    await libraryDb.prepare('DELETE FROM auth_attempts WHERE ip = ?').run(createHmac('sha256', secret()).update(ip).digest('hex'));
     // Secure is set from the forwarded protocol so it works behind a proxy on
     // https while still functioning over plain http on a local network.
     const https = req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https';

@@ -1,4 +1,4 @@
-import { db } from './db.js';
+import { libraryDb as db } from './library-db.js';
 
 export type DocumentKind = 'excerpt' | 'vocab';
 
@@ -49,8 +49,8 @@ export function safeParseArray(json: string | null | undefined): string[] {
 }
 
 /** Every item owns exactly one excerpt notebook and one vocabulary notebook. */
-export function ensureDocuments(itemId: number): { excerpt: number; vocab: number } {
-  const item = db.prepare('SELECT * FROM items WHERE id = ?').get(itemId) as ItemRow | undefined;
+export async function ensureDocuments(itemId: number): Promise<{ excerpt: number; vocab: number }> {
+  const item = (await db.prepare('SELECT * FROM items WHERE id = ?').get(itemId)) as ItemRow | undefined;
   if (!item) throw new Error(`No such item: ${itemId}`);
 
   const label = describeItem(item);
@@ -58,12 +58,12 @@ export function ensureDocuments(itemId: number): { excerpt: number; vocab: numbe
     INSERT INTO documents (item_id, kind, title) VALUES (?, ?, ?)
     ON CONFLICT(item_id, kind) DO UPDATE SET title = excluded.title
   `);
-  insert.run(itemId, 'excerpt', `Reading notes — ${label}`);
-  insert.run(itemId, 'vocab', `Word list — ${label}`);
+  (await insert.run(itemId, 'excerpt', `Reading notes — ${label}`));
+  (await insert.run(itemId, 'vocab', `Word list — ${label}`));
 
-  const rows = db
+  const rows = (await db
     .prepare('SELECT id, kind FROM documents WHERE item_id = ?')
-    .all(itemId) as Array<{ id: number; kind: DocumentKind }>;
+    .all(itemId)) as Array<{ id: number; kind: DocumentKind }>;
   const byKind = Object.fromEntries(rows.map((r) => [r.kind, r.id])) as Record<DocumentKind, number>;
   return { excerpt: byKind.excerpt, vocab: byKind.vocab };
 }
@@ -85,34 +85,35 @@ export interface ResolvePageOptions {
  *   run chronologically.
  * - Book excerpt notebooks simply fill pages in order, like a real notebook.
  */
-export function resolvePage(documentId: number, opts: ResolvePageOptions = {}): number {
+export async function resolvePage(documentId: number, opts: ResolvePageOptions = {}): Promise<number> {
   if (opts.pageId) {
-    const found = db
+    const found = (await db
       .prepare('SELECT id FROM doc_pages WHERE id = ? AND document_id = ?')
-      .get(opts.pageId, documentId) as { id: number } | undefined;
+      .get(opts.pageId, documentId)) as { id: number } | undefined;
     if (found) return found.id;
+    throw Object.assign(new Error('The page does not belong to this notebook.'), { statusCode: 400 });
   }
 
-  const doc = db.prepare('SELECT * FROM documents WHERE id = ?').get(documentId) as
+  const doc = (await db.prepare('SELECT * FROM documents WHERE id = ?').get(documentId)) as
     | { id: number; item_id: number; kind: DocumentKind }
     | undefined;
   if (!doc) throw new Error(`No such document: ${documentId}`);
 
-  const item = db.prepare('SELECT kind FROM items WHERE id = ?').get(doc.item_id) as
-    | { kind: string }
+  const item = (await db.prepare('SELECT kind, issue_date FROM items WHERE id = ?').get(doc.item_id)) as
+    | { kind: string; issue_date: string | null }
     | undefined;
 
   const isPeriodical = item?.kind === 'magazine' || item?.kind === 'newspaper';
   const groupDate = doc.kind === 'vocab'
     ? opts.readingDate ?? today()
     : isPeriodical
-      ? opts.issueDate ?? opts.readingDate ?? today()
+      ? opts.issueDate ?? item?.issue_date ?? opts.readingDate ?? today()
       : null;
 
   if (groupDate) {
-    const existing = db
+    const existing = (await db
       .prepare('SELECT id FROM doc_pages WHERE document_id = ? AND issue_date = ?')
-      .get(documentId, groupDate) as { id: number } | undefined;
+      .get(documentId, groupDate)) as { id: number } | undefined;
     if (existing) return existing.id;
     return createPage(documentId, {
       issueDate: groupDate,
@@ -121,35 +122,35 @@ export function resolvePage(documentId: number, opts: ResolvePageOptions = {}): 
   }
 
   // Sequential book-style paging.
-  const last = db
+  const last = (await db
     .prepare('SELECT id, page_number FROM doc_pages WHERE document_id = ? ORDER BY page_number DESC LIMIT 1')
-    .get(documentId) as { id: number; page_number: number } | undefined;
+    .get(documentId)) as { id: number; page_number: number } | undefined;
 
   if (!last) return createPage(documentId, { title: 'Page 1' });
 
-  const count = db
+  const count = (await db
     .prepare('SELECT COUNT(*) AS n FROM entries WHERE page_id = ?')
-    .get(last.id) as { n: number };
+    .get(last.id)) as { n: number };
   if (count.n < PAGE_CAPACITY) return last.id;
 
   return createPage(documentId, { title: `Page ${last.page_number + 1}` });
 }
 
-export function createPage(
+export async function createPage(
   documentId: number,
   opts: { title?: string; issueDate?: string | null } = {},
-): number {
-  const next = db
+): Promise<number> {
+  const next = (await db
     .prepare('SELECT COALESCE(MAX(page_number), 0) + 1 AS n FROM doc_pages WHERE document_id = ?')
-    .get(documentId) as { n: number };
-  const info = db
+    .get(documentId)) as { n: number };
+  const info = (await db
     .prepare('INSERT INTO doc_pages (document_id, page_number, title, issue_date) VALUES (?, ?, ?, ?)')
-    .run(documentId, next.n, opts.title ?? `Page ${next.n}`, opts.issueDate ?? null);
+    .run(documentId, next.n, opts.title ?? `Page ${next.n}`, opts.issueDate ?? null));
   return Number(info.lastInsertRowid);
 }
 
-export function touchDocument(documentId: number): void {
-  db.prepare("UPDATE documents SET updated_at = datetime('now') WHERE id = ?").run(documentId);
+export async function touchDocument(documentId: number): Promise<void> {
+  (await db.prepare("UPDATE documents SET updated_at = datetime('now') WHERE id = ?").run(documentId));
 }
 
 export function today(): string {

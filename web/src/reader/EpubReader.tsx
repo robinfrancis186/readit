@@ -57,6 +57,8 @@ export function EpubReader({
     if (!host) return;
 
     let cancelled = false;
+    setReady(false);
+    setError(null);
 
     // Hand epub.js the archive bytes rather than the URL. Given a URL it guesses
     // from the extension whether the target is a packaged .epub or an unzipped
@@ -70,7 +72,7 @@ export function EpubReader({
         return res.arrayBuffer();
       })
       .then((buffer) => {
-        if (!cancelled) book.open(buffer, 'binary');
+        if (!cancelled) return book.open(buffer, 'binary');
       });
 
     // epub.js lays out its columns from the size it is given. Percentages leave
@@ -87,6 +89,7 @@ export function EpubReader({
     // The observer fires once as soon as it is attached, which is before
     // epub.js has a view manager to resize — hence the `displayed` guard.
     let displayed = false;
+    let locationsReady = false;
     const observer = new ResizeObserver(() => {
       if (!displayed || cancelled) return;
       if (host.clientWidth > 0 && host.clientHeight > 0) {
@@ -123,6 +126,7 @@ export function EpubReader({
     });
 
     rendition.on('relocated', (location: { start: { cfi: string; href: string; percentage?: number } }) => {
+      if (cancelled || !locationsReady) return;
       const href = location.start.href;
       const nav = book.navigation?.get(href);
       chapterRef.current = nav?.label?.trim() || '';
@@ -146,6 +150,11 @@ export function EpubReader({
         const nav = await book.loaded.navigation;
         onToc?.(flattenToc((nav.toc ?? []) as Array<{ label: string; href: string; subitems?: unknown[] }>));
         await rendition.display(initialLocation ?? undefined);
+        await book.locations.generate(1600);
+        if (cancelled) return;
+        locationsReady = true;
+        const current = rendition.currentLocation() as unknown as { start?: { cfi?: string } };
+        if (current?.start?.cfi) onLocationChangeRef.current?.(current.start.cfi, book.locations.percentageFromCfi(current.start.cfi), chapterRef.current);
         displayed = true;
         if (!cancelled) setReady(true);
       })
@@ -154,6 +163,7 @@ export function EpubReader({
       });
 
     const onKey = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement)?.closest?.('input, textarea, [contenteditable]')) return;
       if (e.key === 'ArrowRight') void rendition.next();
       if (e.key === 'ArrowLeft') void rendition.prev();
     };
@@ -177,8 +187,8 @@ export function EpubReader({
   }, [fontScale, ready]);
 
   useEffect(() => {
-    if (gotoTarget && renditionRef.current) void renditionRef.current.display(gotoTarget);
-  }, [gotoTarget]);
+    if (ready && gotoTarget && renditionRef.current) void renditionRef.current.display(gotoTarget);
+  }, [gotoTarget, ready]);
 
   const next = useCallback(() => void renditionRef.current?.next(), []);
   const prev = useCallback(() => void renditionRef.current?.prev(), []);

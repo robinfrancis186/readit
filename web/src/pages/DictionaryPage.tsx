@@ -28,22 +28,24 @@ export function DictionaryPage() {
       setResults(null);
       return;
     }
+    let active = true;
     const t = setTimeout(async () => {
       try {
         // Try an exact lookup first; fall back to searching definition text so
         // that "birds of prey" finds vulture.
         const direct = await api.lookup(q, lang || undefined);
+        if (!active) return;
         if (direct.results.length) {
           setResults(direct.results);
           return;
         }
         const { results } = await api.searchDictionary(q, lang || undefined);
-        setResults(results);
+        if (active) setResults(results);
       } catch (err) {
         toast((err as Error).message, 'error');
       }
     }, 250);
-    return () => clearTimeout(t);
+    return () => { active = false; clearTimeout(t); };
   }, [q, lang]);
 
   const totalEntries = stats?.sources.reduce((n, s) => n + s.entries, 0) ?? 0;
@@ -61,7 +63,8 @@ export function DictionaryPage() {
 
       <div className="flex gap-2">
         <input
-          className="field flex-1"
+          className="field flex-1 min-w-0"
+          aria-label="Dictionary word"
           placeholder="Type a word in Malayalam or English…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -145,10 +148,7 @@ export function DictionaryPage() {
             {stats?.providers.oxford ? 'configured' : 'not configured'}.
           </p>
           <p>
-            Malayalam and English both work offline out of the box — the dictionaries ship with
-            Readit. To add ശബ്ദതാരാവലി on top, run{' '}
-            <code className="text-ink">npm run import:stv</code>. See{' '}
-            <code className="text-ink">docs/DICTIONARIES.md</code>.
+            Malayalam and English dictionaries are included. Connect to your Readit server to look up words; no external dictionary account is required.
           </p>
         </div>
       </section>

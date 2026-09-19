@@ -1,6 +1,7 @@
+import { ftsQuery } from '../search.js';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { db } from '../db.js';
+import { libraryDb as db } from '../library-db.js';
 import { createPage, resolvePage, safeParseArray, today, touchDocument } from '../documents.js';
 import { escapeHtml } from '../ingest/text.js';
 
@@ -11,13 +12,17 @@ const addEntry = z.object({
   note: z.string().optional(),
   word: z.string().optional(),
   lang: z.string().optional(),
-  meanings: z.unknown().optional(),
+  meanings: z.array(z.object({
+    headword: z.string(), lang: z.enum(['en', 'ml']), source: z.string(),
+    match: z.enum(['exact', 'stem', 'prefix']),
+    senses: z.array(z.object({ pos: z.string().optional(), definition: z.string(), examples: z.array(z.string()).optional() })),
+  })).optional(),
   dictSource: z.string().optional(),
   sourceLabel: z.string().optional(),
   sourceLocator: z.string().optional(),
   readingDate: z.string().optional(),
   issueDate: z.string().optional(),
-  pageId: z.number().optional(),
+  pageId: z.number().int().positive().optional(),
 });
 
 const updateEntry = z.object({
@@ -26,7 +31,7 @@ const updateEntry = z.object({
   note: z.string().nullable().optional(),
   readingDate: z.string().optional(),
   issueDate: z.string().nullable().optional(),
-  pageId: z.number().optional(),
+  pageId: z.number().int().positive().optional(),
   orderIndex: z.number().optional(),
 });
 
@@ -37,10 +42,6 @@ const docQuery = z.object({
   pageId: z.coerce.number().optional(),
 });
 
-function ftsQuery(raw: string): string {
-  const tokens = raw.replace(/["*()^:]/g, ' ').split(/\s+/).filter(Boolean);
-  return tokens.length ? tokens.map((t) => `"${t}"*`).join(' AND ') : '';
-}
 
 function normaliseSavedWord(value: string | null | undefined): string {
   return (
@@ -56,21 +57,21 @@ function normaliseSavedWord(value: string | null | undefined): string {
   );
 }
 
-function findDuplicateWordEntry(
+async function findDuplicateWordEntry(
   documentId: number,
   pageId: number,
   word: string,
-): Record<string, any> | undefined {
+): Promise<Record<string, any> | undefined> {
   const needle = normaliseSavedWord(word);
   if (!needle) return undefined;
 
-  const entries = db
+  const entries = (await db
     .prepare(
       `SELECT * FROM entries
         WHERE document_id = ? AND page_id = ? AND kind = 'word'
         ORDER BY id ASC`,
     )
-    .all(documentId, pageId) as Array<Record<string, any>>;
+    .all(documentId, pageId)) as Array<Record<string, any>>;
 
   return entries.find((entry) => normaliseSavedWord(entry.word || entry.content_text) === needle);
 }
@@ -85,12 +86,12 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
     const id = Number((req.params as { id: string }).id);
     const q = docQuery.parse(req.query);
 
-    const doc = db.prepare('SELECT * FROM documents WHERE id = ?').get(id) as
+    const doc = (await db.prepare('SELECT * FROM documents WHERE id = ?').get(id)) as
       | { id: number; item_id: number; kind: string; title: string }
       | undefined;
     if (!doc) return reply.code(404).send({ error: 'Not found' });
 
-    const item = db.prepare('SELECT * FROM items WHERE id = ?').get(doc.item_id) as
+    const item = (await db.prepare('SELECT * FROM items WHERE id = ?').get(doc.item_id)) as
       | Record<string, any>
       | undefined;
 
@@ -106,21 +107,21 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
     }
     // Dates match against the issue date when there is one (periodicals), else
     // the reading date — which is what "search by date" means in both notebooks.
-    if (q.from) { where.push('COALESCE(e.issue_date, e.reading_date) >= ?'); params.push(q.from); }
-    if (q.to) { where.push('COALESCE(e.issue_date, e.reading_date) <= ?'); params.push(q.to); }
+    if (q.from) { where.push(`${doc.kind === 'vocab' ? 'e.reading_date' : 'COALESCE(e.issue_date, e.reading_date)'} >= ?`); params.push(q.from); }
+    if (q.to) { where.push(`${doc.kind === 'vocab' ? 'e.reading_date' : 'COALESCE(e.issue_date, e.reading_date)'} <= ?`); params.push(q.to); }
     if (q.pageId) { where.push('e.page_id = ?'); params.push(q.pageId); }
 
-    const entries = db
+    const entries = (await db
       .prepare(
         `SELECT e.* FROM entries e
           WHERE ${where.join(' AND ')}
           ORDER BY e.page_id ASC, e.order_index ASC, e.id ASC`,
       )
-      .all(...params) as Array<Record<string, any>>;
+      .all(...params)) as Array<Record<string, any>>;
 
-    const pages = db
+    const pages = (await db
       .prepare('SELECT * FROM doc_pages WHERE document_id = ? ORDER BY page_number ASC')
-      .all(id);
+      .all(id));
 
     return {
       document: doc,
@@ -138,27 +139,22 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
     const id = Number((req.params as { id: string }).id);
     const body = addEntry.parse(req.body);
 
-    const doc = db.prepare('SELECT id FROM documents WHERE id = ?').get(id);
+    const doc = (await db.prepare('SELECT id FROM documents WHERE id = ?').get(id));
     if (!doc) return reply.code(404).send({ error: 'No such document' });
 
     const readingDate = body.readingDate ?? today();
-    const pageId = resolvePage(id, {
-      issueDate: body.issueDate,
-      readingDate,
-      pageId: body.pageId,
-    });
-
-    const result = db.transaction(() => {
+    const result = await db.transaction(async () => {
+      const pageId = await resolvePage(id, { issueDate: body.issueDate, readingDate, pageId: body.pageId });
       if (body.kind === 'word') {
-        const duplicate = findDuplicateWordEntry(id, pageId, body.word ?? body.text);
+        const duplicate = await findDuplicateWordEntry(id, pageId, body.word ?? body.text);
         if (duplicate) return { duplicate: true, entry: duplicate };
       }
 
-      const nextOrder = db
+      const nextOrder = (await db
         .prepare('SELECT COALESCE(MAX(order_index), 0) + 1 AS n FROM entries WHERE page_id = ?')
-        .get(pageId) as { n: number };
+        .get(pageId)) as { n: number };
 
-      const info = db
+      const info = (await db
         .prepare(
           `INSERT INTO entries (
              document_id, page_id, kind, content_html, content_text, note, word, lang,
@@ -169,7 +165,7 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
           id,
           pageId,
           body.kind,
-          body.html ?? `<p>${escapeHtml(body.text)}</p>`,
+          `<p>${escapeHtml(body.text)}</p>`,
           body.text,
           body.note ?? null,
           body.word ?? null,
@@ -181,10 +177,10 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
           readingDate,
           body.issueDate ?? null,
           nextOrder.n,
-        );
+        ));
 
-      touchDocument(id);
-      const entry = db.prepare('SELECT * FROM entries WHERE id = ?').get(Number(info.lastInsertRowid));
+      await touchDocument(id);
+      const entry = (await db.prepare('SELECT * FROM entries WHERE id = ?').get(Number(info.lastInsertRowid)));
       return { duplicate: false, entry };
     })();
 
@@ -199,13 +195,16 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
   app.patch('/api/entries/:id', async (req, reply) => {
     const id = Number((req.params as { id: string }).id);
     const body = updateEntry.parse(req.body);
-    const existing = db.prepare('SELECT document_id FROM entries WHERE id = ?').get(id) as
+    const existing = (await db.prepare('SELECT document_id FROM entries WHERE id = ?').get(id)) as
       | { document_id: number }
       | undefined;
     if (!existing) return reply.code(404).send({ error: 'Not found' });
 
+    if (body.pageId !== undefined && !await db.prepare('SELECT id FROM doc_pages WHERE id = ? AND document_id = ?').get(body.pageId, existing.document_id)) {
+      return reply.code(400).send({ error: 'The page does not belong to this notebook.' });
+    }
     const map: Record<string, unknown> = {
-      content_html: body.html,
+      content_html: body.text !== undefined ? `<p>${escapeHtml(body.text)}</p>` : undefined,
       content_text: body.text,
       note: body.note,
       reading_date: body.readingDate,
@@ -222,20 +221,20 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
     }
     if (sets.length) {
       sets.push("updated_at = datetime('now')");
-      db.prepare(`UPDATE entries SET ${sets.join(', ')} WHERE id = ?`).run(...params, id);
-      touchDocument(existing.document_id);
+      (await db.prepare(`UPDATE entries SET ${sets.join(', ')} WHERE id = ?`).run(...params, id));
+      await touchDocument(existing.document_id);
     }
-    return { entry: db.prepare('SELECT * FROM entries WHERE id = ?').get(id) };
+    return { entry: (await db.prepare('SELECT * FROM entries WHERE id = ?').get(id)) };
   });
 
   app.delete('/api/entries/:id', async (req, reply) => {
     const id = Number((req.params as { id: string }).id);
-    const existing = db.prepare('SELECT document_id FROM entries WHERE id = ?').get(id) as
+    const existing = (await db.prepare('SELECT document_id FROM entries WHERE id = ?').get(id)) as
       | { document_id: number }
       | undefined;
     if (!existing) return reply.code(404).send({ error: 'Not found' });
-    db.prepare('DELETE FROM entries WHERE id = ?').run(id);
-    touchDocument(existing.document_id);
+    (await db.prepare('DELETE FROM entries WHERE id = ?').run(id));
+    await touchDocument(existing.document_id);
     return { ok: true };
   });
 
@@ -244,10 +243,10 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
     const body = z
       .object({ title: z.string().optional(), issueDate: z.string().optional() })
       .parse(req.body ?? {});
-    const doc = db.prepare('SELECT id FROM documents WHERE id = ?').get(id);
+    const doc = (await db.prepare('SELECT id FROM documents WHERE id = ?').get(id));
     if (!doc) return reply.code(404).send({ error: 'No such document' });
-    const pageId = createPage(id, { title: body.title, issueDate: body.issueDate ?? null });
-    return reply.code(201).send({ page: db.prepare('SELECT * FROM doc_pages WHERE id = ?').get(pageId) });
+    const pageId = await createPage(id, { title: body.title, issueDate: body.issueDate ?? null });
+    return reply.code(201).send({ page: (await db.prepare('SELECT * FROM doc_pages WHERE id = ?').get(pageId)) });
   });
 
   app.patch('/api/pages/:id', async (req, reply) => {
@@ -255,37 +254,37 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
     const body = z
       .object({ title: z.string().optional(), issueDate: z.string().nullable().optional() })
       .parse(req.body ?? {});
-    const existing = db.prepare('SELECT id FROM doc_pages WHERE id = ?').get(id);
+    const existing = (await db.prepare('SELECT id FROM doc_pages WHERE id = ?').get(id));
     if (!existing) return reply.code(404).send({ error: 'Not found' });
-    if (body.title !== undefined) db.prepare('UPDATE doc_pages SET title = ? WHERE id = ?').run(body.title, id);
+    if (body.title !== undefined) (await db.prepare('UPDATE doc_pages SET title = ? WHERE id = ?').run(body.title, id));
     if (body.issueDate !== undefined) {
-      db.prepare('UPDATE doc_pages SET issue_date = ? WHERE id = ?').run(body.issueDate, id);
+      (await db.prepare('UPDATE doc_pages SET issue_date = ? WHERE id = ?').run(body.issueDate, id));
     }
-    return { page: db.prepare('SELECT * FROM doc_pages WHERE id = ?').get(id) };
+    return { page: (await db.prepare('SELECT * FROM doc_pages WHERE id = ?').get(id)) };
   });
 
   app.delete('/api/pages/:id', async (req, reply) => {
     const id = Number((req.params as { id: string }).id);
-    const existing = db.prepare('SELECT id FROM doc_pages WHERE id = ?').get(id);
+    const existing = (await db.prepare('SELECT id FROM doc_pages WHERE id = ?').get(id));
     if (!existing) return reply.code(404).send({ error: 'Not found' });
-    db.prepare('DELETE FROM doc_pages WHERE id = ?').run(id);
+    (await db.prepare('DELETE FROM doc_pages WHERE id = ?').run(id));
     return { ok: true };
   });
 
   /** Plain-text / Markdown export of a whole notebook. */
   app.get('/api/documents/:id/export', async (req, reply) => {
     const id = Number((req.params as { id: string }).id);
-    const doc = db.prepare('SELECT * FROM documents WHERE id = ?').get(id) as
+    const doc = (await db.prepare('SELECT * FROM documents WHERE id = ?').get(id)) as
       | { id: number; title: string; kind: string }
       | undefined;
     if (!doc) return reply.code(404).send({ error: 'Not found' });
 
-    const pages = db
+    const pages = (await db
       .prepare('SELECT * FROM doc_pages WHERE document_id = ? ORDER BY page_number')
-      .all(id) as Array<{ id: number; page_number: number; title: string | null; issue_date: string | null }>;
-    const entries = db
+      .all(id)) as Array<{ id: number; page_number: number; title: string | null; issue_date: string | null }>;
+    const entries = (await db
       .prepare('SELECT * FROM entries WHERE document_id = ? ORDER BY page_id, order_index, id')
-      .all(id) as Array<Record<string, any>>;
+      .all(id)) as Array<Record<string, any>>;
 
     const lines: string[] = [`# ${doc.title}`, ''];
     for (const page of pages) {

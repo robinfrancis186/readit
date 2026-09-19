@@ -36,7 +36,7 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <AuthGate>
-      <RouterProvider router={router} future={{ v7_startTransition: true }} />
+      <RouterProvider router={router} />
     </AuthGate>
   </React.StrictMode>,
 );

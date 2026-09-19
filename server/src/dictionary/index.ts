@@ -1,3 +1,4 @@
+import { ftsQuery } from '../search.js';
 import { db } from '../db.js';
 import { OXFORD_APP_ID, OXFORD_APP_KEY } from '../config.js';
 import { lookupOxford } from './oxford.js';
@@ -247,7 +248,7 @@ export async function lookup(rawQuery: string, langHint?: Lang): Promise<LookupR
 
 /** Free-text search across definitions, for the dictionary browser page. */
 export function searchDefinitions(q: string, lang: Lang | undefined, limit = 50): DictionaryResult[] {
-  const match = q.trim().replace(/["']/g, '');
+  const match = ftsQuery(q);
   if (!match) return [];
   const rows = db
     .prepare(
@@ -259,7 +260,7 @@ export function searchDefinitions(q: string, lang: Lang | undefined, limit = 50)
         ORDER BY rank
         LIMIT ?`,
     )
-    .all(...(lang ? [`${match}*`, lang, limit] : [`${match}*`, limit])) as Array<
+    .all(...(lang ? [match, lang, limit] : [match, limit])) as Array<
     DictRow & { lang: Lang }
   >;
   return rows.map((r) => ({

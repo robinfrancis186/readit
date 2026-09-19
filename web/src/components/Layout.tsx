@@ -38,12 +38,12 @@ export function Layout() {
   return (
     <div className="min-h-full flex flex-col">
       <header className="sticky top-0 z-30 bg-paper-blur backdrop-blur border-b border-rule">
-        <div className="mx-auto max-w-7xl px-4 h-14 flex items-center gap-6">
+        <div className="mx-auto max-w-7xl px-4 min-h-14 py-2 flex flex-wrap items-center gap-2 sm:gap-6">
           <Link to="/" className="flex items-center gap-2 font-semibold tracking-tight">
             <span aria-hidden>📚</span>
             <span>Readit</span>
           </Link>
-          <nav className="flex items-center gap-1 text-sm">
+          <nav className="order-last basis-full sm:order-none sm:basis-auto flex items-center gap-1 text-sm">
             {NAV.map((n) => (
               <NavLink
                 key={n.to}

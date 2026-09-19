@@ -3,13 +3,13 @@ import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { DATA_DIR } from './config.js';
 
-export const DB_PATH = join(DATA_DIR, 'readit.db');
+export const DB_PATH = process.env.READIT_DICTIONARY_DB || join(DATA_DIR, 'readit.db');
 
 mkdirSync(dirname(DB_PATH), { recursive: true });
 
-export const db = new Database(DB_PATH);
+export const db = new Database(DB_PATH, { readonly: Boolean(process.env.READIT_DICTIONARY_DB) });
 
-db.pragma('journal_mode = WAL');
+if (!process.env.READIT_DICTIONARY_DB) db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
 /**
@@ -32,7 +32,7 @@ db.pragma('foreign_keys = ON');
  * triggers, which is what powers the keyword search in the library, inside a
  * book, and inside the editable documents.
  */
-const SCHEMA = `
+export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS items (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   kind             TEXT NOT NULL DEFAULT 'book',   -- book | magazine | newspaper | document
@@ -199,6 +199,11 @@ CREATE TRIGGER IF NOT EXISTS dict_ad AFTER DELETE ON dict_entries BEGIN
   INSERT INTO dict_fts(dict_fts, rowid, headword, definition) VALUES ('delete', old.id, old.headword, old.definition);
 END;
 
+CREATE TABLE IF NOT EXISTS auth_attempts (
+  ip TEXT PRIMARY KEY,
+  count INTEGER NOT NULL,
+  expires INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -209,4 +214,4 @@ export function migrate(): void {
   db.exec(SCHEMA);
 }
 
-migrate();
+if (!process.env.READIT_DICTIONARY_DB) migrate();
